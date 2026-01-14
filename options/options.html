@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Threads to Obsidian - 설정</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>⚙️ Threads to Obsidian 설정</h1>
+      <p class="subtitle">Threads 게시글을 Obsidian에 저장하는 설정을 관리합니다.</p>
+    </header>
+
+    <main>
+      <!-- Trigger Settings -->
+      <section class="settings-section">
+        <h2>🎯 트리거 설정</h2>
+        <p class="section-desc">어떤 버튼을 클릭했을 때 저장할지 선택합니다.</p>
+
+        <div class="setting-item">
+          <label class="toggle-label">
+            <input type="checkbox" id="triggerOnLike" checked>
+            <span class="toggle-slider"></span>
+            <span class="label-text">좋아요 클릭 시 저장</span>
+          </label>
+          <p class="setting-hint">♡ → ❤️ 변경 시에만 저장됩니다.</p>
+        </div>
+
+        <div class="setting-item">
+          <label class="toggle-label">
+            <input type="checkbox" id="triggerOnSave" checked>
+            <span class="toggle-slider"></span>
+            <span class="label-text">저장 클릭 시 저장</span>
+          </label>
+          <p class="setting-hint">북마크 활성화 시에만 저장됩니다.</p>
+        </div>
+      </section>
+
+      <!-- REST API Settings -->
+      <section class="settings-section">
+        <h2>🔗 Obsidian Local REST API 설정</h2>
+        <p class="section-desc">Obsidian의 Local REST API 플러그인 연결 정보를 입력합니다.</p>
+
+        <div class="setting-item">
+          <label for="protocol">프로토콜</label>
+          <select id="protocol">
+            <option value="http">HTTP</option>
+            <option value="https">HTTPS</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label for="host">호스트</label>
+          <input type="text" id="host" placeholder="localhost" value="localhost">
+        </div>
+
+        <div class="setting-item">
+          <label for="port">포트</label>
+          <input type="text" id="port" placeholder="27123" value="27123">
+        </div>
+
+        <div class="setting-item">
+          <label for="apiKey">API Key (선택)</label>
+          <input type="password" id="apiKey" placeholder="API Key를 입력하세요">
+          <p class="setting-hint">REST API 플러그인에서 설정한 인증 토큰</p>
+        </div>
+
+        <button id="testConnection" class="btn btn-secondary">🔍 연결 테스트</button>
+        <div id="connectionStatus" class="connection-status"></div>
+      </section>
+
+      <!-- Path Settings -->
+      <section class="settings-section">
+        <h2>📁 저장 경로 설정</h2>
+        <p class="section-desc">Obsidian vault 내 저장 위치를 지정합니다.</p>
+
+        <div class="setting-item">
+          <label for="vaultName">볼트 이름</label>
+          <input type="text" id="vaultName" placeholder="My Vault">
+          <p class="setting-hint">Obsidian 볼트 이름 (토스트 클릭으로 파일 열기에 필요)</p>
+        </div>
+
+        <div class="setting-item">
+          <label for="notesFolder">노트 저장 폴더</label>
+          <input type="text" id="notesFolder" placeholder="Threads" value="Threads">
+          <p class="setting-hint">Obsidian vault 최상위 기준 경로</p>
+        </div>
+
+        <div class="setting-item">
+          <label for="imageFolder">이미지 저장 폴더</label>
+          <input type="text" id="imageFolder" placeholder="Threads_img" value="Threads_img">
+          <p class="setting-hint">이미지를 저장할 폴더 (노트 폴더와 같은 레벨)</p>
+        </div>
+      </section>
+
+      <!-- File Naming Settings -->
+      <section class="settings-section">
+        <h2>📝 파일명 및 미디어 설정</h2>
+
+        <div class="setting-item">
+          <label for="fileNameType">파일명 기준</label>
+          <select id="fileNameType">
+            <option value="postDate">게시글 등록일</option>
+            <option value="saveDate">저장일</option>
+          </select>
+          <p class="setting-hint">형식: @작성자_YYYYMMDD_HHmm.md</p>
+        </div>
+
+        <div class="setting-item">
+          <label class="toggle-label">
+            <input type="checkbox" id="downloadImages" checked>
+            <span class="toggle-slider"></span>
+            <span class="label-text">이미지 로컬 다운로드</span>
+          </label>
+          <p class="setting-hint">비활성화 시 URL 링크만 저장</p>
+        </div>
+
+        <div class="setting-item">
+          <label class="toggle-label">
+            <input type="checkbox" id="showNotification" checked>
+            <span class="toggle-slider"></span>
+            <span class="label-text">저장 완료 알림 표시</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Save Button -->
+      <div class="button-group">
+        <button id="saveSettings" class="btn btn-primary">💾 설정 저장</button>
+        <button id="resetSettings" class="btn btn-secondary">🔄 기본값 복원</button>
+      </div>
+
+      <div id="saveStatus" class="save-status"></div>
+    </main>
+
+    <footer>
+      <p>Threads to Obsidian v1.0.0</p>
+    </footer>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+
+</html>

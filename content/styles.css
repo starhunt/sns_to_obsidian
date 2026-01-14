@@ -1,0 +1,67 @@
+/* Threads to Obsidian - Content Script Styles */
+
+/* Toast notification - Top Right Position */
+.threads-obsidian-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  transform: translateX(100px);
+  background-color: #1a1a1a;
+  color: #ffffff;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 999999;
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  cursor: pointer;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.threads-obsidian-toast.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.threads-obsidian-toast:hover {
+  background-color: #2a2a2a;
+  transform: translateX(0) scale(1.02);
+}
+
+.threads-obsidian-toast .toast-icon {
+  font-size: 18px;
+}
+
+.threads-obsidian-toast .toast-content {
+  flex: 1;
+}
+
+.threads-obsidian-toast .toast-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.threads-obsidian-toast .toast-subtitle {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: light) {
+  .threads-obsidian-toast {
+    background-color: #ffffff;
+    color: #1a1a1a;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e0e0e0;
+  }
+
+  .threads-obsidian-toast:hover {
+    background-color: #f5f5f5;
+  }
+}
