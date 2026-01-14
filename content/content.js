@@ -27,6 +27,7 @@
         }
 
         observeDOM();
+        setupSaveButtonDelegation();
     }
 
     // Observe DOM for dynamically loaded content
@@ -69,18 +70,50 @@
             });
         }
 
-        // Save buttons - In Threads, save is often inside the "더 보기" menu
-        // We'll also look for bookmark-related aria-labels
-        if (settings.triggerOnSave) {
-            const saveSvgs = document.querySelectorAll('svg[aria-label="저장"], svg[aria-label="Save"], svg[aria-label*="bookmark"]');
-            saveSvgs.forEach(svg => {
-                const button = svg.closest('div[role="button"]');
-                if (button && !button.dataset.threadsObsidianListening) {
-                    button.dataset.threadsObsidianListening = 'true';
-                    button.addEventListener('click', handleSaveClick);
+        // Save buttons - use event delegation since they're in dynamic menus
+        // This is set up once in init(), not here
+    }
+
+    // Set up global event delegation for save button (in dynamic menus)
+    function setupSaveButtonDelegation() {
+        if (!settings?.triggerOnSave) return;
+
+        // Use event delegation on document to catch dynamically added save buttons
+        document.addEventListener('click', (event) => {
+            // Check if clicked element or its parent is a save button
+            const target = event.target;
+            const button = target.closest('div[role="button"], div[role="menuitem"]');
+
+            if (!button) return;
+
+            // Check if the button text is "저장" or "Save"
+            const buttonText = button.textContent?.trim();
+            if (buttonText === '저장' || buttonText === 'Save') {
+                handleSaveButtonClick(button);
+            }
+        }, true); // Use capture phase to catch before other handlers
+    }
+
+    // Handle save button click from menu
+    function handleSaveButtonClick(button) {
+        // Find the post that this save action relates to
+        // On detail page, we can use the main post
+        // On feed, we need to track which post the menu was opened for
+
+        setTimeout(() => {
+            // On detail page, get the main post
+            if (window.location.pathname.includes('/post/')) {
+                const mainPost = document.querySelector('div[data-pressable-container="true"]');
+                if (mainPost) {
+                    processPost(mainPost, 'save');
                 }
-            });
-        }
+            } else {
+                // On feed, try to find the post from the menu context
+                // The menu is often a sibling or near the post container
+                // For now, show a message that feed save is not yet supported
+                showToast('ℹ️ 상세 페이지에서 저장 버튼을 사용해주세요.');
+            }
+        }, 200);
     }
 
     // Handle like button click
