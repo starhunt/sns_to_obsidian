@@ -145,26 +145,78 @@ async function saveImageToObsidian(settings, imageData) {
 }
 
 // Save with AI transformation
-async function saveWithAI(data) {
+async function saveWithAI(data, sender) {
   const settings = await getSettings();
   const { postData, images } = data;
 
   let title = null;
   let transformedContent = null;
+  let aiUsed = false;
+  let failureReason = null;
+
+  // Helper to send progress to content script
+  const sendProgress = (stage, detail = '') => {
+    if (sender?.tab?.id) {
+      chrome.tabs.sendMessage(sender.tab.id, {
+        type: 'AI_PROGRESS',
+        stage,
+        detail,
+        model: settings.aiModel,
+        provider: settings.aiProvider
+      }).catch(() => { }); // Ignore if tab closed
+    }
+  };
 
   // Try AI transformation if enabled
   if (settings.aiEnabled && settings.aiApiKey && self.aiService) {
-    try {
-      // Generate title
-      const contentText = postData.content.text;
-      title = await self.aiService.generateTitle(contentText, settings);
+    console.log('[Threads to Obsidian] AI transformation starting...', {
+      provider: settings.aiProvider,
+      model: settings.aiModel,
+      hasApiKey: !!settings.aiApiKey
+    });
 
-      // Transform content
+    try {
+      // Step 1: Generate title
+      sendProgress('title', '제목 생성 중...');
+      const contentText = postData.content.text;
+      console.log('[Threads to Obsidian] Calling AI for title generation...');
+      title = await self.aiService.generateTitle(contentText, settings);
+      console.log('[Threads to Obsidian] Title generated:', title);
+
+      // Step 2: Transform content
+      sendProgress('content', '본문 변환 중...');
+      console.log('[Threads to Obsidian] Calling AI for content transformation...');
       transformedContent = await self.aiService.transformContent(postData, settings);
+
+      if (transformedContent) {
+        console.log('[Threads to Obsidian] Content transformation successful, length:', transformedContent.length);
+        aiUsed = true;
+      } else {
+        failureReason = 'AI가 빈 응답을 반환했습니다.';
+        console.warn('[Threads to Obsidian] AI returned empty content');
+      }
     } catch (error) {
-      console.error('AI transformation failed, using original:', error);
+      failureReason = error.message;
+      console.error('[Threads to Obsidian] AI transformation failed:', {
+        error: error.message,
+        provider: settings.aiProvider,
+        model: settings.aiModel
+      });
     }
+  } else {
+    // Log why AI was not used
+    if (!settings.aiEnabled) {
+      failureReason = 'AI 변환이 비활성화되어 있습니다.';
+    } else if (!settings.aiApiKey) {
+      failureReason = 'API 키가 설정되지 않았습니다.';
+    } else if (!self.aiService) {
+      failureReason = 'AI 서비스를 로드할 수 없습니다.';
+    }
+    console.log('[Threads to Obsidian] AI not used:', failureReason);
   }
+
+  // Step 3: Save to Obsidian
+  sendProgress('saving', 'Obsidian에 저장 중...');
 
   // Build filename
   const username = postData.author.username.replace('@', '');
@@ -180,15 +232,22 @@ async function saveWithAI(data) {
     finalContent = buildAIMarkdown(postData, transformedContent, settings);
   } else {
     // Fallback to original markdown
+    console.log('[Threads to Obsidian] Using original markdown (AI transformation failed or disabled)');
     finalContent = data.originalMarkdown;
   }
 
   // Save to Obsidian
-  return await saveToObsidian({
+  const result = await saveToObsidian({
     filename,
     content: finalContent,
     images: settings.downloadImages ? images : []
   });
+
+  // Add AI usage info to result
+  result.aiUsed = aiUsed;
+  result.failureReason = failureReason;
+
+  return result;
 }
 
 // Format date for filename
@@ -317,7 +376,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SAVE_WITH_AI') {
     (async () => {
       try {
-        const result = await saveWithAI(message.data);
+        const result = await saveWithAI(message.data, sender);
         sendResponse(result);
       } catch (error) {
         console.error('SAVE_WITH_AI error:', error);

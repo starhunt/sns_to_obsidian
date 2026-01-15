@@ -8,6 +8,10 @@
     const processedPosts = new Set();
     let settings = null;
 
+    // AI progress tracking
+    let aiProgressTimer = null;
+    let aiProgressStartTime = null;
+
     // Initialize
     async function init() {
 
@@ -28,6 +32,85 @@
 
         observeDOM();
         setupSaveButtonDelegation();
+        setupProgressListener();
+    }
+
+    // Listen for AI progress updates from service worker
+    function setupProgressListener() {
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if (message.type === 'AI_PROGRESS') {
+                updateProgressToast(message);
+            }
+        });
+    }
+
+    // Update progress toast with current stage and timer
+    function updateProgressToast(progress) {
+        const { stage, detail, model, provider } = progress;
+
+        // Start timer if not already running
+        if (!aiProgressStartTime) {
+            aiProgressStartTime = Date.now();
+            aiProgressTimer = setInterval(() => {
+                updateToastTimer();
+            }, 1000);
+        }
+
+        const elapsed = Math.floor((Date.now() - aiProgressStartTime) / 1000);
+        const stageText = getStageText(stage);
+
+        // Update or create toast
+        const toast = document.querySelector('.threads-obsidian-toast');
+        if (toast && toast.dataset.processing === 'true') {
+            const titleEl = toast.querySelector('.toast-title');
+            const subtitleEl = toast.querySelector('.toast-subtitle');
+            if (titleEl) titleEl.textContent = stageText;
+            if (subtitleEl) subtitleEl.textContent = `${provider}/${model} • ${elapsed}초`;
+        } else {
+            showToast('', {
+                isProcessing: true,
+                stage: stageText,
+                model: `${provider}/${model}`,
+                elapsed: elapsed
+            });
+        }
+    }
+
+    // Update timer display in toast
+    function updateToastTimer() {
+        if (!aiProgressStartTime) return;
+
+        const toast = document.querySelector('.threads-obsidian-toast');
+        if (toast && toast.dataset.processing === 'true') {
+            const subtitleEl = toast.querySelector('.toast-subtitle');
+            if (subtitleEl) {
+                const elapsed = Math.floor((Date.now() - aiProgressStartTime) / 1000);
+                const currentText = subtitleEl.textContent;
+                const parts = currentText.split(' • ');
+                if (parts.length >= 1) {
+                    subtitleEl.textContent = `${parts[0]} • ${elapsed}초`;
+                }
+            }
+        }
+    }
+
+    // Get readable stage text
+    function getStageText(stage) {
+        switch (stage) {
+            case 'title': return '📝 제목 생성 중...';
+            case 'content': return '📄 본문 변환 중...';
+            case 'saving': return '💾 저장 중...';
+            default: return '⏳ 처리 중...';
+        }
+    }
+
+    // Stop progress timer
+    function stopProgressTimer() {
+        if (aiProgressTimer) {
+            clearInterval(aiProgressTimer);
+            aiProgressTimer = null;
+        }
+        aiProgressStartTime = null;
     }
 
     // Observe DOM for dynamically loaded content
@@ -268,8 +351,19 @@
             // Determine message type based on AI settings
             let result;
             if (settings.aiEnabled) {
-                // Show processing toast for AI transformation (takes longer)
-                showToast('🔄 AI 변환 중...', { isProcessing: true });
+                // Start progress timer
+                aiProgressStartTime = Date.now();
+                aiProgressTimer = setInterval(() => {
+                    updateToastTimer();
+                }, 1000);
+
+                // Show initial processing toast
+                showToast('', {
+                    isProcessing: true,
+                    stage: '⏳ AI 처리 시작...',
+                    model: `${settings.aiProvider}/${settings.aiModel}`,
+                    elapsed: 0
+                });
 
                 // Use AI transformation
                 result = await chrome.runtime.sendMessage({
@@ -280,6 +374,18 @@
                         originalMarkdown: markdown
                     }
                 });
+
+                // Stop progress timer
+                stopProgressTimer();
+
+                // Log AI usage info
+                if (result) {
+                    if (result.aiUsed) {
+                        console.log('[Threads to Obsidian] AI transformation successful');
+                    } else if (result.failureReason) {
+                        console.warn('[Threads to Obsidian] AI not used:', result.failureReason);
+                    }
+                }
             } else {
                 // Use original markdown
                 result = await chrome.runtime.sendMessage({
@@ -293,15 +399,24 @@
             }
 
             if (result && result.success) {
-                showToast('✅ Saved to Obsidian', {
+                const aiInfo = result.aiUsed ? ' (AI 변환)' : (result.failureReason ? ' (원본 저장)' : '');
+                showToast('✅ Saved to Obsidian' + aiInfo, {
                     isSuccess: true,
                     filePath: result.path,
                     vaultName: result.vaultName
                 });
+
+                // Log failure reason if AI was enabled but not used
+                if (settings.aiEnabled && !result.aiUsed && result.failureReason) {
+                    console.warn('[Threads to Obsidian] 원본으로 저장됨. 이유:', result.failureReason);
+                }
             } else {
                 showToast('❌ Failed to save: ' + (result?.error || 'Unknown error'));
             }
         } catch (error) {
+            // Stop timer on error
+            stopProgressTimer();
+
             console.error('Threads to Obsidian: Error in processPost:', error);
 
             // Specific handling for extension context invalidated
@@ -918,11 +1033,17 @@
 
         if (isProcessing) {
             // Processing toast with spinner - stays visible until replaced
+            const { stage, model, elapsed } = options;
+            const stageText = stage || 'AI 변환 중...';
+            const modelText = model || '';
+            const elapsedText = elapsed !== undefined ? `${elapsed}초` : '';
+            const subtitleParts = [modelText, elapsedText].filter(Boolean).join(' • ') || '잠시 기다려주세요';
+
             toast.innerHTML = `
                 <span class="toast-icon toast-spinner">⏳</span>
                 <div class="toast-content">
-                    <div class="toast-title">AI 변환 중...</div>
-                    <div class="toast-subtitle">잠시 기다려주세요</div>
+                    <div class="toast-title">${stageText}</div>
+                    <div class="toast-subtitle">${subtitleParts}</div>
                 </div>
             `;
             toast.dataset.processing = 'true';
