@@ -23,7 +23,7 @@
             settings = {
                 triggerOnLike: true,
                 triggerOnSave: true,
-                downloadImages: true,
+                downloadImages: false,
                 notesFolder: 'Threads',
                 imageFolder: 'Threads_img',
                 fileNameType: 'postDate'
@@ -442,7 +442,8 @@
                     text: extractText(postElement),
                     media: extractMedia(postElement),
                     links: extractLinks(postElement),
-                    tag: extractTag(postElement)
+                    tag: extractTag(postElement),
+                    topic: extractTopic(postElement)
                 },
                 timestamp: extractTimestamp(postElement),
                 url: extractPostUrl(postElement),
@@ -613,6 +614,24 @@
         if (tagLink) {
             return tagLink.textContent.trim();
         }
+        return null;
+    }
+
+    // Extract topic (주제) - usually displayed at the top of the post
+    function extractTopic(element) {
+        // Look for topic links (format: /topic/topicname)
+        const topicLink = element.querySelector('a[href*="/topic/"]');
+        if (topicLink) {
+            return topicLink.textContent.trim();
+        }
+
+        // Look for topic indicator in parent elements (feed view)
+        const parent = element.closest('article') || element.closest('[role="article"]') || element;
+        const allLinks = parent.querySelectorAll('a[href*="/topic/"]');
+        if (allLinks.length > 0) {
+            return allLinks[0].textContent.trim();
+        }
+
         return null;
     }
 

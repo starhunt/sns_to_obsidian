@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS = {
     notesFolder: 'Threads',
     imageFolder: 'Threads_img',
     fileNameType: 'postDate',
-    downloadImages: true,
+    downloadImages: false,
     showNotification: true,
     // AI Settings
     aiEnabled: false,

@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = {
   fileNameType: 'postDate', // 'postDate' or 'saveDate'
 
   // Media settings
-  downloadImages: true,
+  downloadImages: false,
 
   // Notification
   showNotification: true,
@@ -274,11 +274,17 @@ function buildAIMarkdown(postData, aiContent, settings) {
   const savedDate = formatSeoulDate(now);
   const postDate = postData.timestamp ? formatSeoulDate(new Date(postData.timestamp)) : '알 수 없음';
 
+  // Extract topic from post
+  const topic = postData.content.topic || null;
+
   let md = '---\n';
   md += 'source: threads\n';
   md += `type: ${postData.type}\n`;
   md += `author: "${postData.author.username}"\n`;
   md += `author_name: "${postData.author.displayName}"\n`;
+  if (topic) {
+    md += `topic: "${topic}"\n`;
+  }
   md += `post_url: "${postData.url}"\n`;
   md += `saved_at: "${savedDate}"\n`;
   md += `post_date: "${postDate}"\n`;
@@ -288,6 +294,9 @@ function buildAIMarkdown(postData, aiContent, settings) {
   }
 
   md += 'tags:\n  - threads\n';
+  if (topic) {
+    md += `  - ${topic.replace(/^#/, '')}\n`;
+  }
   if (postData.content.tag) {
     md += `  - ${postData.content.tag.replace(/^#/, '')}\n`;
   }
@@ -298,6 +307,9 @@ function buildAIMarkdown(postData, aiContent, settings) {
   md += '| 항목 | 내용 |\n';
   md += '|------|------|\n';
   md += `| 게시자 | [${postData.author.displayName} (${postData.author.username})](https://www.threads.com/${postData.author.username}) |\n`;
+  if (topic) {
+    md += `| 주제 | ${topic} |\n`;
+  }
   md += `| 게시URL | [Threads에서 보기](${postData.url}) |\n`;
   md += `| 게시일 | ${postDate} |\n`;
   md += `| 저장일 | ${savedDate} |\n\n`;
@@ -318,19 +330,26 @@ function buildAIMarkdown(postData, aiContent, settings) {
     });
   }
 
-  // Media section
+  // Media section - use iframe for CDN URLs when not downloading images
   if (postData.content.media?.length > 0) {
     md += '\n---\n\n## 7. 미디어\n\n';
     postData.content.media.forEach((m, i) => {
       if (m.type === 'image') {
-        md += `![이미지 ${i + 1}](${m.url})\n\n`;
+        if (settings.downloadImages && m.localPath) {
+          // Use local image path (downloaded)
+          md += `![이미지 ${i + 1}](${m.localPath})\n\n`;
+        } else {
+          // Use iframe for CDN image (avoids expiration issues)
+          md += `<iframe width="560" height="400" src="${m.url}" title="이미지 ${i + 1}" frameborder="0"></iframe>\n\n`;
+        }
       } else if (m.type === 'video') {
         // Check for YouTube embed
         const ytMatch = m.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
         if (ytMatch) {
           md += `<iframe width="560" height="315" src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen></iframe>\n\n`;
         } else {
-          md += `🎬 [동영상 링크](${m.url})\n\n`;
+          // Use iframe for video CDN URL
+          md += `<iframe width="560" height="315" src="${m.url}" title="동영상 ${i + 1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n\n`;
         }
       }
     });
