@@ -435,29 +435,33 @@
     // Extract post data from DOM
     function extractPostData(postElement) {
         try {
+            // Extract topic first to exclude it from text body
+            const topic = extractTopic(postElement);
+
             const data = {
                 type: 'single',
                 author: extractAuthor(postElement),
                 content: {
-                    text: extractText(postElement),
+                    text: extractText(postElement, topic),
                     media: extractMedia(postElement),
                     links: extractLinks(postElement),
                     tag: extractTag(postElement),
-                    topic: extractTopic(postElement)
+                    topic: topic
                 },
                 timestamp: extractTimestamp(postElement),
                 url: extractPostUrl(postElement),
                 chainedPosts: [],
                 quotedPost: null,
-                reposter: null
+                reposter: null,
+                _topic: topic // Store for chained posts extraction
             };
 
             // Detect post type
             data.type = detectPostType(postElement, data);
 
-            // If it's a thread, extract chained posts
+            // If it's a thread, extract chained posts (pass topic for filtering)
             if (data.type === 'thread') {
-                data.chainedPosts = extractChainedPosts(postElement);
+                data.chainedPosts = extractChainedPosts(postElement, topic);
             }
 
             // If it's a quote, extract quoted post
@@ -494,8 +498,8 @@
         };
     }
 
-    // Extract post text content
-    function extractText(element) {
+    // Extract post text content (optionally exclude topic text)
+    function extractText(element, topicToRemove = null) {
         // Find the main text container
         const textContainers = element.querySelectorAll('[dir="auto"]');
         let text = '';
@@ -523,6 +527,9 @@
 
             // Skip if matches exclude patterns
             if (excludePatterns.some(pattern => pattern.test(content))) return;
+
+            // Skip topic text to avoid duplication in body
+            if (topicToRemove && content === topicToRemove) return;
 
             // Skip very short content that's likely UI text
             if (content.length < 2) return;
@@ -743,8 +750,8 @@
         return 'single';
     }
 
-    // Extract chained posts for threads
-    function extractChainedPosts(element) {
+    // Extract chained posts for threads (pass topic to filter from text)
+    function extractChainedPosts(element, topicToRemove = null) {
         const chainedPosts = [];
         const author = extractAuthor(element).username;
         const isDetailPage = window.location.pathname.includes('/post/');
@@ -790,7 +797,7 @@
                 }
 
                 // Extract content from same-author post with thread indicator
-                const text = extractText(post);
+                const text = extractText(post, topicToRemove);
                 const media = extractMedia(post);
 
                 if (text || media.length > 0) {
@@ -825,7 +832,7 @@
                 }
 
                 // Extract content
-                const text = extractText(sibling);
+                const text = extractText(sibling, topicToRemove);
                 const media = extractMedia(sibling);
 
                 if (text || media.length > 0) {

@@ -316,13 +316,13 @@ function buildAIMarkdown(postData, aiContent, settings) {
   md += '| 항목 | 내용 |\n';
   md += '|------|------|\n';
   md += `| 게시자 | [${postData.author.displayName} (${postData.author.username})](https://www.threads.com/${postData.author.username}) |\n`;
+  md += `| 게시URL | [Threads에서 보기](${postData.url}) |\n`;
+  md += `| 게시일 | ${postDate} |\n`;
+  md += `| 저장일 | ${savedDate} |\n`;
   if (topic) {
     md += `| 주제 | ${topic} |\n`;
   }
-  md += `| 게시URL | [Threads에서 보기](${postData.url}) |\n`;
-  md += `| 게시일 | ${postDate} |\n`;
-  md += `| 저장일 | ${savedDate} |\n\n`;
-  md += '---\n\n';
+  md += '\n---\n\n';
 
   // AI transformed content
   md += aiContent;
