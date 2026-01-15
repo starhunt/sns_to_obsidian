@@ -1,5 +1,51 @@
 // Threads to Obsidian - Options Page Script
 
+// Default prompt template for AI transformation
+const DEFAULT_PROMPT_TEMPLATE = `다음은 Threads SNS 게시글입니다. 이 게시글을 분석하여 아래 형식으로 변환해주세요.
+모든 내용은 한국어로 작성하세요.
+
+---
+게시자: {author}
+원문:
+{content}
+---
+
+다음 형식으로 출력하세요:
+
+## 1. 핵심 요약 (Executive Summary)
+
+(1) 핵심 메시지 한 문장으로 요약
+(2) 주요 포인트 3개를 번호 목록으로
+(3) 대상 독자 설명
+
+---
+
+## 2. 주요 개념 (Key Concepts)
+
+| 개념/용어 | 설명 | 맥락 |
+|----------|------|------|
+(게시글에서 추출한 주요 개념들을 테이블로 정리)
+
+---
+
+## 3. 상세 노트 (Detailed Notes)
+
+(게시글의 내용을 단락별로 상세하게 풀어서 설명. 배경 맥락, 주요 논점, 근거 등 포함)
+
+---
+
+## 4. 실행 아이템 (Action Items)
+
+- [ ] (게시글에서 도출한 실행 가능한 항목들을 체크박스 목록으로)
+
+---
+
+## 5. 쉬운 설명 (Feynman Explanation)
+
+(Feynman 기법으로 게시글의 핵심 내용을 초등학생도 이해할 수 있게 쉽게 설명)
+
+위 형식을 정확히 따라서 출력하세요. 섹션 헤더와 구분선을 유지하세요.`;
+
 // Default settings
 const DEFAULT_SETTINGS = {
     triggerOnLike: true,
@@ -19,7 +65,8 @@ const DEFAULT_SETTINGS = {
     aiProvider: 'openai',
     aiApiKey: '',
     aiEndpoint: '',
-    aiModel: 'gpt-4o-mini'
+    aiModel: 'gpt-4o-mini',
+    aiPromptTemplate: DEFAULT_PROMPT_TEMPLATE
 };
 
 // AI Provider configurations
@@ -78,7 +125,9 @@ const elements = {
     aiEndpointContainer: document.getElementById('aiEndpointContainer'),
     aiModel: document.getElementById('aiModel'),
     testAiConnection: document.getElementById('testAiConnection'),
-    aiConnectionStatus: document.getElementById('aiConnectionStatus')
+    aiConnectionStatus: document.getElementById('aiConnectionStatus'),
+    aiPromptTemplate: document.getElementById('aiPromptTemplate'),
+    resetPromptTemplate: document.getElementById('resetPromptTemplate')
 };
 
 // Load settings from storage
@@ -104,6 +153,7 @@ async function loadSettings() {
     elements.aiProvider.value = settings.aiProvider;
     elements.aiApiKey.value = settings.aiApiKey;
     elements.aiEndpoint.value = settings.aiEndpoint;
+    elements.aiPromptTemplate.value = settings.aiPromptTemplate || DEFAULT_PROMPT_TEMPLATE;
 
     // Update model dropdown and endpoint visibility
     updateAiModelOptions(settings.aiProvider, settings.aiModel);
@@ -130,7 +180,8 @@ async function saveSettings() {
         aiProvider: elements.aiProvider.value,
         aiApiKey: elements.aiApiKey.value.trim(),
         aiEndpoint: elements.aiEndpoint.value.trim(),
-        aiModel: elements.aiModel.value
+        aiModel: elements.aiModel.value,
+        aiPromptTemplate: elements.aiPromptTemplate.value || DEFAULT_PROMPT_TEMPLATE
     };
 
     await chrome.storage.sync.set({ settings });
@@ -272,6 +323,12 @@ elements.aiProvider.addEventListener('change', (e) => {
     const provider = e.target.value;
     updateAiModelOptions(provider);
     updateEndpointVisibility(provider);
+});
+
+// Reset prompt template handler
+elements.resetPromptTemplate.addEventListener('click', () => {
+    elements.aiPromptTemplate.value = DEFAULT_PROMPT_TEMPLATE;
+    showStatus(elements.aiConnectionStatus, '🔄 기본 템플릿으로 복원되었습니다.', 'success');
 });
 
 // Initialize

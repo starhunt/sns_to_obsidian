@@ -136,7 +136,7 @@ ${content.substring(0, 1000)}`;
 
 // Transform post content using AI
 async function transformContent(postData, settings) {
-    const prompt = buildTransformPrompt(postData);
+    const prompt = buildTransformPrompt(postData, settings);
 
     try {
         return await callAI(prompt, settings);
@@ -146,25 +146,14 @@ async function transformContent(postData, settings) {
     }
 }
 
-// Build transformation prompt
-function buildTransformPrompt(postData) {
-    const content = postData.content.text;
-    const author = postData.author.displayName || postData.author.username;
-    const chainedContent = postData.chainedPosts?.map((p, i) =>
-        `[${i + 2}/${postData.chainedPosts.length + 1}] ${p.text}`
-    ).join('\n\n') || '';
-
-    const fullContent = chainedContent
-        ? `${content}\n\n--- 연결된 게시물 ---\n${chainedContent}`
-        : content;
-
-    return `다음은 Threads SNS 게시글입니다. 이 게시글을 분석하여 아래 형식으로 변환해주세요.
+// Default prompt template (fallback)
+const DEFAULT_PROMPT_TEMPLATE = `다음은 Threads SNS 게시글입니다. 이 게시글을 분석하여 아래 형식으로 변환해주세요.
 모든 내용은 한국어로 작성하세요.
 
 ---
-게시자: ${author}
+게시자: {author}
 원문:
-${fullContent}
+{content}
 ---
 
 다음 형식으로 출력하세요:
@@ -202,6 +191,26 @@ ${fullContent}
 (Feynman 기법으로 게시글의 핵심 내용을 초등학생도 이해할 수 있게 쉽게 설명)
 
 위 형식을 정확히 따라서 출력하세요. 섹션 헤더와 구분선을 유지하세요.`;
+
+// Build transformation prompt using custom template from settings
+function buildTransformPrompt(postData, settings) {
+    const content = postData.content.text;
+    const author = postData.author.displayName || postData.author.username;
+    const chainedContent = postData.chainedPosts?.map((p, i) =>
+        `[${i + 2}/${postData.chainedPosts.length + 1}] ${p.text}`
+    ).join('\n\n') || '';
+
+    const fullContent = chainedContent
+        ? `${content}\n\n--- 연결된 게시물 ---\n${chainedContent}`
+        : content;
+
+    // Use custom template from settings or default
+    const template = settings.aiPromptTemplate || DEFAULT_PROMPT_TEMPLATE;
+
+    // Replace placeholders
+    return template
+        .replace(/\{author\}/g, author)
+        .replace(/\{content\}/g, fullContent);
 }
 
 // Test AI connection
