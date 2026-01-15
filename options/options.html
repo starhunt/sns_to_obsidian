@@ -73,6 +73,54 @@
         <div id="connectionStatus" class="connection-status"></div>
       </section>
 
+      <!-- AI Provider Settings -->
+      <section class="settings-section">
+        <h2>🤖 AI 프로바이더 설정</h2>
+        <p class="section-desc">게시글 요약 및 변환에 사용할 AI 서비스를 설정합니다.</p>
+
+        <div class="setting-item">
+          <label class="toggle-label">
+            <input type="checkbox" id="aiEnabled">
+            <span class="toggle-slider"></span>
+            <span class="label-text">AI 변환 사용</span>
+          </label>
+          <p class="setting-hint">비활성화 시 원본 그대로 저장됩니다.</p>
+        </div>
+
+        <div class="setting-item">
+          <label for="aiProvider">AI 프로바이더</label>
+          <select id="aiProvider">
+            <option value="openai">OpenAI (GPT)</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="grok">Grok (X.AI)</option>
+            <option value="zai">zai (GLM)</option>
+            <option value="custom">직접 설정</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label for="aiApiKey">API Key</label>
+          <input type="password" id="aiApiKey" placeholder="API Key를 입력하세요">
+        </div>
+
+        <div class="setting-item" id="aiEndpointContainer" style="display: none;">
+          <label for="aiEndpoint">API Endpoint</label>
+          <input type="text" id="aiEndpoint" placeholder="https://api.example.com/v1/chat/completions">
+          <p class="setting-hint">Custom 또는 zai 사용 시 엔드포인트 URL</p>
+        </div>
+
+        <div class="setting-item">
+          <label for="aiModel">모델</label>
+          <select id="aiModel">
+            <!-- Dynamically populated based on provider -->
+          </select>
+        </div>
+
+        <button id="testAiConnection" class="btn btn-secondary">🔍 AI 연결 테스트</button>
+        <div id="aiConnectionStatus" class="connection-status"></div>
+      </section>
+
       <!-- Path Settings -->
       <section class="settings-section">
         <h2>📁 저장 경로 설정</h2>

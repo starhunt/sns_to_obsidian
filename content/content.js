@@ -265,15 +265,29 @@
                 return;
             }
 
-            // Send to background script
-            const result = await chrome.runtime.sendMessage({
-                type: 'SAVE_TO_OBSIDIAN',
-                data: {
-                    filename,
-                    content: markdown,
-                    images: settings.downloadImages ? images : []
-                }
-            });
+            // Determine message type based on AI settings
+            let result;
+            if (settings.aiEnabled) {
+                // Use AI transformation
+                result = await chrome.runtime.sendMessage({
+                    type: 'SAVE_WITH_AI',
+                    data: {
+                        postData,
+                        images: settings.downloadImages ? images : [],
+                        originalMarkdown: markdown
+                    }
+                });
+            } else {
+                // Use original markdown
+                result = await chrome.runtime.sendMessage({
+                    type: 'SAVE_TO_OBSIDIAN',
+                    data: {
+                        filename,
+                        content: markdown,
+                        images: settings.downloadImages ? images : []
+                    }
+                });
+            }
 
             if (result && result.success) {
                 showToast('✅ Saved to Obsidian', {
