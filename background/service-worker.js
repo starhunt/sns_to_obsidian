@@ -340,16 +340,38 @@ function buildAIMarkdown(postData, aiContent, settings) {
   }
 
   // Media section - use iframe for CDN URLs when not downloading images
+  // Collect all media from master post and chained posts
+  const allMedia = [];
+
+  // Master post media
   if (postData.content.media?.length > 0) {
+    postData.content.media.forEach(m => {
+      allMedia.push({ ...m, source: 'master' });
+    });
+  }
+
+  // Chained posts media
+  if (postData.chainedPosts?.length > 0) {
+    postData.chainedPosts.forEach((post, idx) => {
+      if (post.media?.length > 0) {
+        post.media.forEach(m => {
+          allMedia.push({ ...m, source: `chained-${idx + 2}` });
+        });
+      }
+    });
+  }
+
+  if (allMedia.length > 0) {
     md += '\n---\n\n## 7. 미디어\n\n';
-    postData.content.media.forEach((m, i) => {
+    allMedia.forEach((m, i) => {
+      const label = m.source === 'master' ? '마스터글' : `연관글 ${m.source.replace('chained-', '')}`;
       if (m.type === 'image') {
         if (settings.downloadImages && m.localPath) {
           // Use local image path (downloaded)
-          md += `![이미지 ${i + 1}](${m.localPath})\n\n`;
+          md += `![${label} 이미지 ${i + 1}](${m.localPath})\n\n`;
         } else {
           // Use iframe for CDN image (avoids expiration issues)
-          md += `<iframe width="560" height="400" src="${m.url}" title="이미지 ${i + 1}" frameborder="0"></iframe>\n\n`;
+          md += `<iframe width="560" height="400" src="${m.url}" title="${label} 이미지 ${i + 1}" frameborder="0"></iframe>\n\n`;
         }
       } else if (m.type === 'video') {
         // Check for YouTube embed
@@ -358,7 +380,7 @@ function buildAIMarkdown(postData, aiContent, settings) {
           md += `<iframe width="560" height="315" src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen></iframe>\n\n`;
         } else {
           // Use iframe for video CDN URL
-          md += `<iframe width="560" height="315" src="${m.url}" title="동영상 ${i + 1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n\n`;
+          md += `<iframe width="560" height="315" src="${m.url}" title="${label} 동영상 ${i + 1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n\n`;
         }
       }
     });

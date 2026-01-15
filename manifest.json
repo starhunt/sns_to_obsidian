@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Threads to Obsidian",
-  "version": "1.2.9",
+  "version": "1.2.10",
   "description": "Save Threads posts to Obsidian via Local REST API",
   "permissions": [
     "storage",

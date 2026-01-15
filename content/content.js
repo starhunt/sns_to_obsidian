@@ -587,14 +587,28 @@
             });
         });
 
-        // Videos
+        // Videos - check both video.src and source tags
         const videos = element.querySelectorAll('video');
         videos.forEach(video => {
-            if (video.src) {
+            let videoUrl = video.src;
+
+            // If video.src is empty, check for source tags inside
+            if (!videoUrl) {
+                const sourceEl = video.querySelector('source[src]');
+                if (sourceEl) {
+                    videoUrl = sourceEl.src;
+                }
+            }
+
+            // Also check poster attribute as fallback indicator
+            const poster = video.poster || '';
+
+            if (videoUrl) {
                 media.push({
                     type: 'video',
-                    url: video.src,
-                    altText: ''
+                    url: videoUrl,
+                    altText: '',
+                    poster: poster
                 });
             }
         });
