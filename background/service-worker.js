@@ -176,20 +176,23 @@ async function saveWithAI(data, sender) {
     });
 
     try {
-      // Step 1: Generate title
-      sendProgress('title', '제목 생성 중...');
-      const contentText = postData.content.text;
-      console.log('[Threads to Obsidian] Calling AI for title generation...');
-      title = await self.aiService.generateTitle(contentText, settings);
-      console.log('[Threads to Obsidian] Title generated:', title);
+      // Single API call for both title and content
+      sendProgress('content', 'AI 변환 중...');
+      console.log('[Threads to Obsidian] Calling AI for transformation...');
 
-      // Step 2: Transform content
-      sendProgress('content', '본문 변환 중...');
-      console.log('[Threads to Obsidian] Calling AI for content transformation...');
-      transformedContent = await self.aiService.transformContent(postData, settings);
+      const result = await self.aiService.transformWithTitle(postData, settings);
 
-      if (transformedContent) {
-        console.log('[Threads to Obsidian] Content transformation successful, length:', transformedContent.length);
+      if (result.error) {
+        failureReason = result.error;
+        console.error('[Threads to Obsidian] AI transformation error:', result.error);
+      } else if (result.content) {
+        title = result.title;
+        transformedContent = result.content;
+        console.log('[Threads to Obsidian] AI transformation successful:', {
+          titleGenerated: !!title,
+          title: title,
+          contentLength: transformedContent.length
+        });
         aiUsed = true;
       } else {
         failureReason = 'AI가 빈 응답을 반환했습니다.';
@@ -215,7 +218,7 @@ async function saveWithAI(data, sender) {
     console.log('[Threads to Obsidian] AI not used:', failureReason);
   }
 
-  // Step 3: Save to Obsidian
+  // Step 2: Save to Obsidian
   sendProgress('saving', 'Obsidian에 저장 중...');
 
   // Build filename
