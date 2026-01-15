@@ -268,6 +268,9 @@
             // Determine message type based on AI settings
             let result;
             if (settings.aiEnabled) {
+                // Show processing toast for AI transformation (takes longer)
+                showToast('🔄 AI 변환 중...', { isProcessing: true });
+
                 // Use AI transformation
                 result = await chrome.runtime.sendMessage({
                     type: 'SAVE_WITH_AI',
@@ -305,6 +308,9 @@
             if (error.message.includes('Extension context invalidated') ||
                 error.message.includes('Receiving end does not exist')) {
                 showToast('⚠️ 확장 프로그램이 갱신되었습니다. 페이지를 새로고침하세요.');
+            } else if (error.message.includes('message channel closed')) {
+                // AI processing timeout - may have still succeeded
+                showToast('⏳ AI 처리가 지연되고 있습니다. Obsidian에서 확인해주세요.');
             } else {
                 showToast('❌ Error: ' + error.message);
             }

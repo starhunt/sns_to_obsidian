@@ -315,9 +315,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Save with AI transformation
   if (message.type === 'SAVE_WITH_AI') {
-    saveWithAI(message.data)
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+    (async () => {
+      try {
+        const result = await saveWithAI(message.data);
+        sendResponse(result);
+      } catch (error) {
+        console.error('SAVE_WITH_AI error:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
     return true;
   }
 
