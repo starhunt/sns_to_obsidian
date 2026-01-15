@@ -553,8 +553,20 @@
             const src = img.src || '';
             const alt = img.alt || '';
 
-            // Skip images inside profile links (absolute exclusion)
-            if (img.closest('a[href^="/@"]')) {
+            // Skip images inside pure profile links (/@username only, not /@username/post/...)
+            const profileLink = img.closest('a[href^="/@"]');
+            if (profileLink) {
+                const href = profileLink.getAttribute('href') || '';
+                // Only exclude if it's a pure profile link (no /post/ or /media in path)
+                if (!href.includes('/post/') && !href.includes('/media')) {
+                    return;
+                }
+            }
+
+            // Skip images inside video player containers (these are thumbnails)
+            if (img.closest('div[aria-label="Video player"]') ||
+                img.closest('video') ||
+                img.closest('[data-video-player]')) {
                 return;
             }
 
