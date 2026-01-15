@@ -121,16 +121,38 @@ async function transformWithTitle(postData, settings) {
         const response = await callAI(prompt, settings);
 
         // Parse title and content from response
-        // Expected format: first line is title wrapped in <<TITLE>>...<</TITLE>>
-        const titleMatch = response.match(/<<TITLE>>(.+?)<<\/TITLE>>/);
         let title = null;
         let content = response;
 
+        // Strategy 1: Look for <<TITLE>> tags (flexible regex, multiline support)
+        const titleMatch = response.match(/<<TITLE>>\s*([\s\S]+?)\s*<<\/?TITLE>>/i);
+
         if (titleMatch) {
-            title = titleMatch[1].trim()
-                .replace(/[\/\\:*?"<>|]/g, '')
-                .substring(0, 30);
-            content = response.replace(/<<TITLE>>(.+?)<<\/TITLE>>\n?/, '').trim();
+            title = titleMatch[1];
+            // Remove the title tag block from content
+            content = response.replace(/<<TITLE>>[\s\S]+?<<\/?TITLE>>\n?/i, '').trim();
+        } else {
+            // Strategy 2: Look for "Title:" or "제목:" at the start
+            const lines = response.split('\n');
+            const firstLine = lines[0].trim();
+
+            if (firstLine.match(/^(Title|제목)\s*[:]\s*(.+)$/i)) {
+                title = firstLine.match(/^(Title|제목)\s*[:]\s*(.+)$/i)[2];
+                content = lines.slice(1).join('\n').trim();
+            }
+            // Strategy 3: Heuristic - if first line is short (< 50 chars) and not a markdown header/separator
+            else if (firstLine.length > 0 && firstLine.length < 50 && !firstLine.startsWith('#') && !firstLine.startsWith('---')) {
+                title = firstLine;
+                content = lines.slice(1).join('\n').trim();
+            }
+        }
+
+        // Clean title if found
+        if (title) {
+            title = title.trim()
+                .replace(/[\/\\:*?"<>|]/g, '') // Remove invalid filename chars
+                .replace(/\.$/, '')            // Remove trailing dot
+                .substring(0, 50);             // Limit length
         }
 
         return { title, content };
