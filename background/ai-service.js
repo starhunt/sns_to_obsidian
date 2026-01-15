@@ -11,7 +11,7 @@ const AI_ENDPOINTS = {
 
 // Call AI API based on provider
 async function callAI(prompt, settings) {
-    const { aiProvider, aiApiKey, aiEndpoint, aiModel } = settings;
+    const { aiProvider, aiApiKey, aiEndpoint, aiModel, aiMaxTokens = 64000 } = settings;
 
     if (!aiApiKey) {
         throw new Error('API 키가 설정되지 않았습니다.');
@@ -20,24 +20,24 @@ async function callAI(prompt, settings) {
     switch (aiProvider) {
         case 'openai':
         case 'grok':
-            return await callOpenAICompatible(prompt, aiApiKey, AI_ENDPOINTS[aiProvider], aiModel);
+            return await callOpenAICompatible(prompt, aiApiKey, AI_ENDPOINTS[aiProvider], aiModel, aiMaxTokens);
         case 'gemini':
-            return await callGemini(prompt, aiApiKey, aiModel);
+            return await callGemini(prompt, aiApiKey, aiModel, aiMaxTokens);
         case 'anthropic':
-            return await callAnthropic(prompt, aiApiKey, aiModel);
+            return await callAnthropic(prompt, aiApiKey, aiModel, aiMaxTokens);
         case 'zai':
             const endpoint = aiEndpoint || AI_ENDPOINTS.zai;
-            return await callOpenAICompatible(prompt, aiApiKey, endpoint, aiModel);
+            return await callOpenAICompatible(prompt, aiApiKey, endpoint, aiModel, aiMaxTokens);
         case 'custom':
             if (!aiEndpoint) throw new Error('커스텀 엔드포인트가 설정되지 않았습니다.');
-            return await callOpenAICompatible(prompt, aiApiKey, aiEndpoint, aiModel);
+            return await callOpenAICompatible(prompt, aiApiKey, aiEndpoint, aiModel, aiMaxTokens);
         default:
             throw new Error(`지원하지 않는 프로바이더: ${aiProvider}`);
     }
 }
 
 // OpenAI-compatible API call (OpenAI, Grok, zai, Custom)
-async function callOpenAICompatible(prompt, apiKey, endpoint, model) {
+async function callOpenAICompatible(prompt, apiKey, endpoint, model, maxTokens) {
     const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -48,7 +48,7 @@ async function callOpenAICompatible(prompt, apiKey, endpoint, model) {
             model: model,
             messages: [{ role: 'user', content: prompt }],
             temperature: 0.7,
-            max_tokens: 4000
+            max_tokens: maxTokens
         })
     });
 
@@ -62,7 +62,7 @@ async function callOpenAICompatible(prompt, apiKey, endpoint, model) {
 }
 
 // Google Gemini API call
-async function callGemini(prompt, apiKey, model) {
+async function callGemini(prompt, apiKey, model, maxTokens) {
     const endpoint = AI_ENDPOINTS.gemini.replace('{model}', model) + `?key=${apiKey}`;
 
     const response = await fetch(endpoint, {
@@ -74,7 +74,7 @@ async function callGemini(prompt, apiKey, model) {
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
                 temperature: 0.7,
-                maxOutputTokens: 4000
+                maxOutputTokens: maxTokens
             }
         })
     });
@@ -89,7 +89,7 @@ async function callGemini(prompt, apiKey, model) {
 }
 
 // Anthropic Claude API call
-async function callAnthropic(prompt, apiKey, model) {
+async function callAnthropic(prompt, apiKey, model, maxTokens) {
     const response = await fetch(AI_ENDPOINTS.anthropic, {
         method: 'POST',
         headers: {
@@ -99,7 +99,7 @@ async function callAnthropic(prompt, apiKey, model) {
         },
         body: JSON.stringify({
             model: model,
-            max_tokens: 4000,
+            max_tokens: maxTokens,
             messages: [{ role: 'user', content: prompt }]
         })
     });

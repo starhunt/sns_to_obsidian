@@ -71,29 +71,39 @@ const DEFAULT_SETTINGS = {
     aiApiKey: '',
     aiEndpoint: '',
     aiModel: 'gpt-4o-mini',
-    aiPromptTemplate: DEFAULT_PROMPT_TEMPLATE
+    aiMaxTokens: 64000,
+    aiPromptTemplate: DEFAULT_PROMPT_TEMPLATE,
+    // Provider-specific API keys (stored separately)
+    aiApiKeys: {
+        openai: '',
+        gemini: '',
+        anthropic: '',
+        grok: '',
+        zai: '',
+        custom: ''
+    }
 };
 
-// AI Provider configurations
+// AI Provider configurations with latest models (2025)
 const AI_PROVIDERS = {
     openai: {
-        models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+        models: ['gpt-4.5-preview', 'gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o1-pro', 'gpt-4-turbo'],
         showEndpoint: false
     },
     gemini: {
-        models: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash'],
+        models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'],
         showEndpoint: false
     },
     anthropic: {
-        models: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest', 'claude-3-opus-latest'],
+        models: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest', 'claude-3-opus-latest', 'claude-3-5-opus-latest'],
         showEndpoint: false
     },
     grok: {
-        models: ['grok-2', 'grok-2-mini'],
+        models: ['grok-3', 'grok-3-mini', 'grok-2', 'grok-2-mini'],
         showEndpoint: false
     },
     zai: {
-        models: ['GLM-4.7', 'GLM-4-Plus'],
+        models: ['GLM-4.5', 'GLM-4.7', 'GLM-4-Plus', 'GLM-4-Air'],
         showEndpoint: true,
         defaultEndpoint: 'https://api.z.ai/api/coding/paas/v4/chat/completions'
     },
@@ -129,6 +139,7 @@ const elements = {
     aiEndpoint: document.getElementById('aiEndpoint'),
     aiEndpointContainer: document.getElementById('aiEndpointContainer'),
     aiModel: document.getElementById('aiModel'),
+    aiMaxTokens: document.getElementById('aiMaxTokens'),
     testAiConnection: document.getElementById('testAiConnection'),
     aiConnectionStatus: document.getElementById('aiConnectionStatus'),
     aiPromptTemplate: document.getElementById('aiPromptTemplate'),
@@ -156,9 +167,17 @@ async function loadSettings() {
     // AI Settings
     elements.aiEnabled.checked = settings.aiEnabled;
     elements.aiProvider.value = settings.aiProvider;
-    elements.aiApiKey.value = settings.aiApiKey;
+
+    // Load provider-specific API key
+    const aiApiKeys = settings.aiApiKeys || DEFAULT_SETTINGS.aiApiKeys;
+    elements.aiApiKey.value = aiApiKeys[settings.aiProvider] || settings.aiApiKey || '';
+
     elements.aiEndpoint.value = settings.aiEndpoint;
+    elements.aiMaxTokens.value = settings.aiMaxTokens || 64000;
     elements.aiPromptTemplate.value = settings.aiPromptTemplate || DEFAULT_PROMPT_TEMPLATE;
+
+    // Store current aiApiKeys for provider switching
+    elements.aiApiKey.dataset.aiApiKeys = JSON.stringify(aiApiKeys);
 
     // Update model dropdown and endpoint visibility
     updateAiModelOptions(settings.aiProvider, settings.aiModel);
@@ -186,7 +205,14 @@ async function saveSettings() {
         aiApiKey: elements.aiApiKey.value.trim(),
         aiEndpoint: elements.aiEndpoint.value.trim(),
         aiModel: elements.aiModel.value,
-        aiPromptTemplate: elements.aiPromptTemplate.value || DEFAULT_PROMPT_TEMPLATE
+        aiMaxTokens: parseInt(elements.aiMaxTokens.value) || 64000,
+        aiPromptTemplate: elements.aiPromptTemplate.value || DEFAULT_PROMPT_TEMPLATE,
+        // Update provider-specific API keys
+        aiApiKeys: (() => {
+            const currentKeys = JSON.parse(elements.aiApiKey.dataset.aiApiKeys || '{}');
+            currentKeys[elements.aiProvider.value] = elements.aiApiKey.value.trim();
+            return { ...DEFAULT_SETTINGS.aiApiKeys, ...currentKeys };
+        })()
     };
 
     await chrome.storage.sync.set({ settings });
@@ -323,11 +349,24 @@ elements.resetSettings.addEventListener('click', resetSettings);
 elements.testConnection.addEventListener('click', testConnection);
 elements.testAiConnection.addEventListener('click', testAiConnection);
 
-// AI Provider change handler
+// AI Provider change handler - swap API keys when switching
 elements.aiProvider.addEventListener('change', (e) => {
-    const provider = e.target.value;
-    updateAiModelOptions(provider);
-    updateEndpointVisibility(provider);
+    const newProvider = e.target.value;
+    const previousProvider = e.target.dataset.previousProvider || 'openai';
+
+    // Save current API key to the previous provider
+    const currentKeys = JSON.parse(elements.aiApiKey.dataset.aiApiKeys || '{}');
+    currentKeys[previousProvider] = elements.aiApiKey.value.trim();
+    elements.aiApiKey.dataset.aiApiKeys = JSON.stringify(currentKeys);
+
+    // Load API key for the new provider
+    elements.aiApiKey.value = currentKeys[newProvider] || '';
+
+    // Store current provider for next switch
+    e.target.dataset.previousProvider = newProvider;
+
+    updateAiModelOptions(newProvider);
+    updateEndpointVisibility(newProvider);
 });
 
 // Reset prompt template handler

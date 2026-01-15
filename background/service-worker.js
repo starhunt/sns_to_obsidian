@@ -35,7 +35,16 @@ const DEFAULT_SETTINGS = {
   aiProvider: 'openai',
   aiApiKey: '',
   aiEndpoint: '',
-  aiModel: 'gpt-4o-mini'
+  aiModel: 'gpt-4o-mini',
+  aiMaxTokens: 64000,
+  aiApiKeys: {
+    openai: '',
+    gemini: '',
+    anthropic: '',
+    grok: '',
+    zai: '',
+    custom: ''
+  }
 };
 
 // Initialize settings on install
