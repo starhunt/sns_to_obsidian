@@ -905,7 +905,7 @@
 
     // Show toast notification with optional click-to-open Obsidian
     function showToast(message, options = {}) {
-        const { filePath, isSuccess, vaultName } = options;
+        const { filePath, isSuccess, vaultName, isProcessing } = options;
 
         // Remove any existing toast
         const existingToast = document.querySelector('.threads-obsidian-toast');
@@ -916,7 +916,17 @@
         const toast = document.createElement('div');
         toast.className = 'threads-obsidian-toast';
 
-        if (filePath && isSuccess) {
+        if (isProcessing) {
+            // Processing toast with spinner - stays visible until replaced
+            toast.innerHTML = `
+                <span class="toast-icon toast-spinner">⏳</span>
+                <div class="toast-content">
+                    <div class="toast-title">AI 변환 중...</div>
+                    <div class="toast-subtitle">잠시 기다려주세요</div>
+                </div>
+            `;
+            toast.dataset.processing = 'true';
+        } else if (filePath && isSuccess) {
             // Create structured toast with click-to-open
             const hasVault = vaultName && vaultName.trim() !== '';
 
@@ -953,10 +963,13 @@
             toast.classList.add('show');
         }, 100);
 
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        // Only auto-hide if not a processing toast
+        if (!isProcessing) {
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
     }
 
     // Start initialization
