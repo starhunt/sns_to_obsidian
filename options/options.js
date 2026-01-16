@@ -144,65 +144,6 @@ const elements = {
 // Provider list
 const PROVIDER_LIST = ['openai', 'gemini', 'anthropic', 'grok', 'zai', 'custom'];
 
-// Toggle provider card expand/collapse
-window.toggleProviderCard = function (provider) {
-    const body = document.getElementById(`body-${provider}`);
-    const btn = document.querySelector(`.provider-card[data-provider="${provider}"] .provider-toggle-btn`);
-
-    if (body.style.display === 'none') {
-        body.style.display = 'block';
-        btn.classList.add('open');
-    } else {
-        body.style.display = 'none';
-        btn.classList.remove('open');
-    }
-};
-
-// Test individual provider connection
-window.testProviderConnection = async function (provider) {
-    const resultEl = document.getElementById(`result-${provider}`);
-    resultEl.textContent = '테스트 중...';
-    resultEl.className = 'test-result';
-
-    try {
-        // Save settings first
-        await saveSettingsQuietly();
-
-        // Get provider settings from current inputs
-        const apiKey = document.getElementById(`apiKey-${provider}`)?.value.trim();
-        const model = provider === 'custom'
-            ? document.getElementById(`model-${provider}`)?.value.trim()
-            : document.getElementById(`model-${provider}`)?.value;
-        const endpoint = document.getElementById(`endpoint-${provider}`)?.value.trim() || '';
-
-        if (!apiKey) {
-            resultEl.textContent = '❌ API Key를 입력하세요';
-            resultEl.className = 'test-result error';
-            return;
-        }
-
-        const result = await chrome.runtime.sendMessage({
-            type: 'TEST_AI_CONNECTION',
-            provider: provider,
-            apiKey: apiKey,
-            model: model,
-            endpoint: endpoint
-        });
-
-        if (result.success) {
-            resultEl.textContent = '✅ 연결 성공';
-            resultEl.className = 'test-result success';
-            updateProviderStatus(provider, true);
-        } else {
-            resultEl.textContent = '❌ ' + (result.message || '연결 실패');
-            resultEl.className = 'test-result error';
-        }
-    } catch (error) {
-        resultEl.textContent = '❌ ' + error.message;
-        resultEl.className = 'test-result error';
-    }
-};
-
 // Update provider status indicator
 function updateProviderStatus(provider, configured) {
     const statusEl = document.getElementById(`status-${provider}`);
@@ -454,6 +395,96 @@ elements.resetPromptTemplate.addEventListener('click', () => {
     elements.aiPromptTemplate.value = DEFAULT_PROMPT_TEMPLATE;
     showStatus(elements.saveStatus, '🔄 기본 템플릿으로 복원되었습니다.', 'success');
 });
+
+// Provider card toggle buttons
+document.querySelectorAll('.provider-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const provider = e.target.dataset.provider;
+        if (provider) {
+            toggleProviderCard(provider);
+        }
+    });
+});
+
+// Provider card header click (entire header toggles)
+document.querySelectorAll('.provider-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+        // Don't toggle if clicking on the button itself (it has its own handler)
+        if (e.target.classList.contains('provider-toggle-btn')) return;
+        const card = header.closest('.provider-card');
+        const provider = card?.dataset.provider;
+        if (provider) {
+            toggleProviderCard(provider);
+        }
+    });
+});
+
+// Provider test connection buttons
+document.querySelectorAll('.test-provider-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const provider = e.target.dataset.provider;
+        if (provider) {
+            testProviderConnection(provider);
+        }
+    });
+});
+
+// Toggle provider card function (used by event listeners)
+function toggleProviderCard(provider) {
+    const body = document.getElementById(`body-${provider}`);
+    const btn = document.querySelector(`.provider-card[data-provider="${provider}"] .provider-toggle-btn`);
+
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        if (btn) btn.classList.add('open');
+    } else {
+        body.style.display = 'none';
+        if (btn) btn.classList.remove('open');
+    }
+}
+
+// Test provider connection function
+async function testProviderConnection(provider) {
+    const resultEl = document.getElementById(`result-${provider}`);
+    resultEl.textContent = '테스트 중...';
+    resultEl.className = 'test-result';
+
+    try {
+        await saveSettingsQuietly();
+
+        const apiKey = document.getElementById(`apiKey-${provider}`)?.value.trim();
+        const model = provider === 'custom'
+            ? document.getElementById(`model-${provider}`)?.value.trim()
+            : document.getElementById(`model-${provider}`)?.value;
+        const endpoint = document.getElementById(`endpoint-${provider}`)?.value.trim() || '';
+
+        if (!apiKey) {
+            resultEl.textContent = '❌ API Key를 입력하세요';
+            resultEl.className = 'test-result error';
+            return;
+        }
+
+        const result = await chrome.runtime.sendMessage({
+            type: 'TEST_AI_CONNECTION',
+            provider: provider,
+            apiKey: apiKey,
+            model: model,
+            endpoint: endpoint
+        });
+
+        if (result.success) {
+            resultEl.textContent = '✅ 연결 성공';
+            resultEl.className = 'test-result success';
+            updateProviderStatus(provider, true);
+        } else {
+            resultEl.textContent = '❌ ' + (result.message || '연결 실패');
+            resultEl.className = 'test-result error';
+        }
+    } catch (error) {
+        resultEl.textContent = '❌ ' + error.message;
+        resultEl.className = 'test-result error';
+    }
+}
 
 // Initialize
 loadSettings();
