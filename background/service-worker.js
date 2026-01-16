@@ -371,16 +371,16 @@ function buildAIMarkdown(postData, aiContent, settings) {
           md += `![${label} 이미지 ${i + 1}](${m.localPath})\n\n`;
         } else {
           // Use iframe for CDN image (avoids expiration issues)
-          md += `<iframe width="560" height="400" src="${m.url}" title="${label} 이미지 ${i + 1}" frameborder="0"></iframe>\n\n`;
+          md += `<iframe width="100%" height="400" src="${m.url}" title="${label} 이미지 ${i + 1}" frameborder="0"></iframe>\n\n`;
         }
       } else if (m.type === 'video') {
         // Check for YouTube embed
         const ytMatch = m.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
         if (ytMatch) {
-          md += `<iframe width="560" height="315" src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen></iframe>\n\n`;
+          md += `<iframe width="100%" height="315" src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen></iframe>\n\n`;
         } else {
           // Use iframe for video CDN URL
-          md += `<iframe width="560" height="315" src="${m.url}" title="${label} 동영상 ${i + 1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n\n`;
+          md += `<iframe width="100%" height="315" src="${m.url}" title="${label} 동영상 ${i + 1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n\n`;
         }
       }
     });

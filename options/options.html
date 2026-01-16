@@ -88,8 +88,8 @@
         </div>
 
         <div class="setting-item">
-          <label for="aiProvider">AI 프로바이더</label>
-          <select id="aiProvider">
+          <label for="aiActiveProvider">🎯 기본 AI 프로바이더</label>
+          <select id="aiActiveProvider">
             <option value="openai">OpenAI (GPT)</option>
             <option value="gemini">Google Gemini</option>
             <option value="anthropic">Anthropic (Claude)</option>
@@ -97,24 +97,7 @@
             <option value="zai">zai (GLM)</option>
             <option value="custom">직접 설정</option>
           </select>
-        </div>
-
-        <div class="setting-item">
-          <label for="aiApiKey">API Key</label>
-          <input type="password" id="aiApiKey" placeholder="API Key를 입력하세요">
-        </div>
-
-        <div class="setting-item" id="aiEndpointContainer" style="display: none;">
-          <label for="aiEndpoint">API Endpoint</label>
-          <input type="text" id="aiEndpoint" placeholder="https://api.example.com/v1/chat/completions">
-          <p class="setting-hint">Custom 또는 zai 사용 시 엔드포인트 URL</p>
-        </div>
-
-        <div class="setting-item">
-          <label for="aiModel">모델</label>
-          <select id="aiModel">
-            <!-- Dynamically populated based on provider -->
-          </select>
+          <p class="setting-hint">저장 시 사용할 AI 프로바이더를 선택합니다. 아래에서 각 프로바이더별 설정을 미리 해두세요.</p>
         </div>
 
         <div class="setting-item">
@@ -123,8 +106,162 @@
           <p class="setting-hint">AI 응답의 최대 토큰 수 (기본: 64000)</p>
         </div>
 
-        <button id="testAiConnection" class="btn btn-secondary">🔍 AI 연결 테스트</button>
-        <div id="aiConnectionStatus" class="connection-status"></div>
+        <!-- Provider Cards Container -->
+        <div id="providerCardsContainer" style="margin-top: 20px;">
+          <h3 style="margin-bottom: 12px; font-size: 14px; color: #666;">📋 프로바이더별 API 설정 (펼쳐서 설정)</h3>
+
+          <!-- OpenAI -->
+          <div class="provider-card" data-provider="openai">
+            <div class="provider-header">
+              <span class="provider-icon">🔵</span>
+              <span class="provider-name">OpenAI (GPT)</span>
+              <span class="provider-status" id="status-openai"></span>
+              <button class="provider-toggle-btn" onclick="toggleProviderCard('openai')">▼</button>
+            </div>
+            <div class="provider-body" id="body-openai" style="display: none;">
+              <div class="provider-field">
+                <label>API Key</label>
+                <input type="password" id="apiKey-openai" placeholder="sk-...">
+              </div>
+              <div class="provider-field">
+                <label>모델</label>
+                <select id="model-openai"></select>
+              </div>
+              <div class="provider-actions">
+                <button class="btn btn-sm" onclick="testProviderConnection('openai')">🔍 연결 테스트</button>
+                <span class="test-result" id="result-openai"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gemini -->
+          <div class="provider-card" data-provider="gemini">
+            <div class="provider-header">
+              <span class="provider-icon">🟢</span>
+              <span class="provider-name">Google Gemini</span>
+              <span class="provider-status" id="status-gemini"></span>
+              <button class="provider-toggle-btn" onclick="toggleProviderCard('gemini')">▼</button>
+            </div>
+            <div class="provider-body" id="body-gemini" style="display: none;">
+              <div class="provider-field">
+                <label>API Key</label>
+                <input type="password" id="apiKey-gemini" placeholder="AI...">
+              </div>
+              <div class="provider-field">
+                <label>모델</label>
+                <select id="model-gemini"></select>
+              </div>
+              <div class="provider-actions">
+                <button class="btn btn-sm" onclick="testProviderConnection('gemini')">🔍 연결 테스트</button>
+                <span class="test-result" id="result-gemini"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anthropic -->
+          <div class="provider-card" data-provider="anthropic">
+            <div class="provider-header">
+              <span class="provider-icon">🟤</span>
+              <span class="provider-name">Anthropic (Claude)</span>
+              <span class="provider-status" id="status-anthropic"></span>
+              <button class="provider-toggle-btn" onclick="toggleProviderCard('anthropic')">▼</button>
+            </div>
+            <div class="provider-body" id="body-anthropic" style="display: none;">
+              <div class="provider-field">
+                <label>API Key</label>
+                <input type="password" id="apiKey-anthropic" placeholder="sk-ant-...">
+              </div>
+              <div class="provider-field">
+                <label>모델</label>
+                <select id="model-anthropic"></select>
+              </div>
+              <div class="provider-actions">
+                <button class="btn btn-sm" onclick="testProviderConnection('anthropic')">🔍 연결 테스트</button>
+                <span class="test-result" id="result-anthropic"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grok -->
+          <div class="provider-card" data-provider="grok">
+            <div class="provider-header">
+              <span class="provider-icon">⚫</span>
+              <span class="provider-name">Grok (X.AI)</span>
+              <span class="provider-status" id="status-grok"></span>
+              <button class="provider-toggle-btn" onclick="toggleProviderCard('grok')">▼</button>
+            </div>
+            <div class="provider-body" id="body-grok" style="display: none;">
+              <div class="provider-field">
+                <label>API Key</label>
+                <input type="password" id="apiKey-grok" placeholder="xai-...">
+              </div>
+              <div class="provider-field">
+                <label>모델</label>
+                <select id="model-grok"></select>
+              </div>
+              <div class="provider-actions">
+                <button class="btn btn-sm" onclick="testProviderConnection('grok')">🔍 연결 테스트</button>
+                <span class="test-result" id="result-grok"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- zai -->
+          <div class="provider-card" data-provider="zai">
+            <div class="provider-header">
+              <span class="provider-icon">🟡</span>
+              <span class="provider-name">zai (GLM)</span>
+              <span class="provider-status" id="status-zai"></span>
+              <button class="provider-toggle-btn" onclick="toggleProviderCard('zai')">▼</button>
+            </div>
+            <div class="provider-body" id="body-zai" style="display: none;">
+              <div class="provider-field">
+                <label>API Key</label>
+                <input type="password" id="apiKey-zai" placeholder="API Key">
+              </div>
+              <div class="provider-field">
+                <label>Endpoint</label>
+                <input type="text" id="endpoint-zai" placeholder="https://api.z.ai/api/coding/paas/v4/chat/completions">
+              </div>
+              <div class="provider-field">
+                <label>모델</label>
+                <select id="model-zai"></select>
+              </div>
+              <div class="provider-actions">
+                <button class="btn btn-sm" onclick="testProviderConnection('zai')">🔍 연결 테스트</button>
+                <span class="test-result" id="result-zai"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Custom -->
+          <div class="provider-card" data-provider="custom">
+            <div class="provider-header">
+              <span class="provider-icon">⚙️</span>
+              <span class="provider-name">Custom (직접 설정)</span>
+              <span class="provider-status" id="status-custom"></span>
+              <button class="provider-toggle-btn" onclick="toggleProviderCard('custom')">▼</button>
+            </div>
+            <div class="provider-body" id="body-custom" style="display: none;">
+              <div class="provider-field">
+                <label>API Key</label>
+                <input type="password" id="apiKey-custom" placeholder="API Key">
+              </div>
+              <div class="provider-field">
+                <label>Endpoint</label>
+                <input type="text" id="endpoint-custom" placeholder="https://api.example.com/v1/chat/completions">
+              </div>
+              <div class="provider-field">
+                <label>모델 이름</label>
+                <input type="text" id="model-custom" placeholder="gpt-4o">
+              </div>
+              <div class="provider-actions">
+                <button class="btn btn-sm" onclick="testProviderConnection('custom')">🔍 연결 테스트</button>
+                <span class="test-result" id="result-custom"></span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="setting-item" style="margin-top: 20px;">
           <label for="aiPromptTemplate">변환 프롬프트 템플릿</label>
