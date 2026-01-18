@@ -345,30 +345,44 @@ function buildAIMarkdown(postData, aiContent, settings) {
 
   // Master post media
   if (postData.content.media?.length > 0) {
-    postData.content.media.forEach(m => {
-      allMedia.push({ ...m, source: 'master' });
+    postData.content.media.forEach((m, idx) => {
+      allMedia.push({ ...m, source: 'master', mediaIndex: idx });
     });
   }
 
   // Chained posts media
   if (postData.chainedPosts?.length > 0) {
-    postData.chainedPosts.forEach((post, idx) => {
+    postData.chainedPosts.forEach((post, postIdx) => {
       if (post.media?.length > 0) {
-        post.media.forEach(m => {
-          allMedia.push({ ...m, source: `chained-${idx + 2}` });
+        post.media.forEach((m, mediaIdx) => {
+          allMedia.push({ ...m, source: `chained-${postIdx + 2}`, postIndex: postIdx, mediaIndex: mediaIdx });
         });
       }
     });
   }
+
+  // Generate base filename for images (without .md extension)
+  const username = postData.author.username.replace('@', '');
+  const date = new Date(postData.timestamp || Date.now());
+  const dateStr = formatDateForFilename(date);
+  const baseFilename = `@${username}_${dateStr}`;
 
   if (allMedia.length > 0) {
     md += '\n---\n\n## 7. 미디어\n\n';
     allMedia.forEach((m, i) => {
       const label = m.source === 'master' ? '마스터글' : `연관글 ${m.source.replace('chained-', '')}`;
       if (m.type === 'image') {
-        if (settings.downloadImages && m.localPath) {
-          // Use local image path (downloaded)
-          md += `![${label} 이미지 ${i + 1}](${m.localPath})\n\n`;
+        if (settings.downloadImages) {
+          // Generate local image path using settings.imageFolder
+          let localPath;
+          if (m.source === 'master') {
+            localPath = `${settings.imageFolder}/${baseFilename}_${m.mediaIndex + 1}.jpg`;
+          } else {
+            // Chained post image: include post index
+            localPath = `${settings.imageFolder}/${baseFilename}_p${m.postIndex + 2}_${m.mediaIndex + 1}.jpg`;
+          }
+          // Use Obsidian wikilink format for local images
+          md += `![[${localPath}]]\n\n`;
         } else {
           // Use iframe for CDN image (avoids expiration issues)
           md += `<iframe width="100%" height="400" src="${m.url}" title="${label} 이미지 ${i + 1}" frameborder="0"></iframe>\n\n`;
