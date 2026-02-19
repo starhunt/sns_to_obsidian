@@ -19,7 +19,9 @@ const DEFAULT_SETTINGS = {
   // Path settings
   vaultName: '',
   notesFolder: 'Threads',
+  useYearMonthFolders: false,
   imageFolder: 'Threads_img',
+  imageFolderMode: 'fixed', // 'fixed' or 'relative'
 
   // File naming
   fileNameType: 'postDate', // 'postDate' or 'saveDate'
@@ -68,12 +70,47 @@ function buildApiUrl(settings, endpoint) {
   return `${baseUrl}${endpoint}`;
 }
 
+// Get year/month path string (e.g., "2026/01")
+function getYearMonthPath(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}/${month}`;
+}
+
+// Calculate note folder path based on settings
+function getNoteFolderPath(settings, date) {
+  if (settings.useYearMonthFolders) {
+    return `${settings.notesFolder}/${getYearMonthPath(date)}`;
+  }
+  return settings.notesFolder;
+}
+
+// Calculate image folder path based on settings
+function getImageFolderPath(settings, date) {
+  if (settings.useYearMonthFolders && settings.imageFolderMode === 'relative') {
+    // Use note folder + _img suffix (e.g., "Threads/2026/01_img")
+    const yearMonth = getYearMonthPath(date);
+    const yearMonthParts = yearMonth.split('/');
+    const year = yearMonthParts[0];
+    const month = yearMonthParts[1];
+    return `${settings.notesFolder}/${year}/${month}_img`;
+  }
+  return settings.imageFolder;
+}
+
 // Save note to Obsidian via REST API
 async function saveToObsidian(noteData) {
   const settings = await getSettings();
 
-  const { filename, content, images } = noteData;
-  const notePath = `${settings.notesFolder}/${filename}`;
+  const { filename, content, images, postDate } = noteData;
+
+  // Use post date if provided, otherwise current date
+  const date = postDate ? new Date(postDate) : new Date();
+
+  // Calculate folder paths
+  const notesFolderPath = getNoteFolderPath(settings, date);
+  const imageFolderPath = getImageFolderPath(settings, date);
+  const notePath = `${notesFolderPath}/${filename}`;
 
   const headers = {
     'Content-Type': 'text/markdown',
@@ -100,7 +137,7 @@ async function saveToObsidian(noteData) {
     if (settings.downloadImages && images && images.length > 0) {
       for (const image of images) {
         try {
-          await saveImageToObsidian(settings, image);
+          await saveImageToObsidian(settings, image, imageFolderPath);
         } catch (imgError) {
           console.error('Failed to save image:', imgError);
         }
@@ -118,9 +155,11 @@ async function saveToObsidian(noteData) {
 }
 
 // Save image to Obsidian
-async function saveImageToObsidian(settings, imageData) {
+async function saveImageToObsidian(settings, imageData, imageFolderPath) {
   const { url, filename } = imageData;
-  const imagePath = `${settings.imageFolder}/${filename}`;
+  // Use provided imageFolderPath or fall back to settings.imageFolder
+  const folderPath = imageFolderPath || settings.imageFolder;
+  const imagePath = `${folderPath}/${filename}`;
 
   // Fetch the image
   const imageResponse = await fetch(url);
@@ -241,7 +280,7 @@ async function saveWithAI(data, sender) {
   let finalContent;
   if (transformedContent) {
     // Use AI transformed content with frontmatter
-    finalContent = buildAIMarkdown(postData, transformedContent, settings);
+    finalContent = buildAIMarkdown(postData, transformedContent, settings, date);
   } else {
     // Fallback to original markdown
     console.log('[Threads to Obsidian] Using original markdown (AI transformation failed or disabled)');
@@ -252,7 +291,8 @@ async function saveWithAI(data, sender) {
   const result = await saveToObsidian({
     filename,
     content: finalContent,
-    images: settings.downloadImages ? images : []
+    images: settings.downloadImages ? images : [],
+    postDate: postData.timestamp || Date.now()
   });
 
   // Add AI usage info to result
@@ -273,7 +313,7 @@ function formatDateForFilename(date) {
 }
 
 // Build markdown with AI content
-function buildAIMarkdown(postData, aiContent, settings) {
+function buildAIMarkdown(postData, aiContent, settings, date) {
   const now = new Date();
   const formatSeoulDate = (d) => d.toLocaleString('ko-KR', {
     timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit',
@@ -363,9 +403,12 @@ function buildAIMarkdown(postData, aiContent, settings) {
 
   // Generate base filename for images (without .md extension)
   const username = postData.author.username.replace('@', '');
-  const date = new Date(postData.timestamp || Date.now());
-  const dateStr = formatDateForFilename(date);
+  const postDateForPath = date || new Date(postData.timestamp || Date.now());
+  const dateStr = formatDateForFilename(postDateForPath);
   const baseFilename = `@${username}_${dateStr}`;
+
+  // Calculate image folder path
+  const imageFolderPath = getImageFolderPath(settings, postDateForPath);
 
   if (allMedia.length > 0) {
     md += '\n---\n\n## 7. 미디어\n\n';
@@ -373,13 +416,13 @@ function buildAIMarkdown(postData, aiContent, settings) {
       const label = m.source === 'master' ? '마스터글' : `연관글 ${m.source.replace('chained-', '')}`;
       if (m.type === 'image') {
         if (settings.downloadImages) {
-          // Generate local image path using settings.imageFolder
+          // Generate local image path using calculated imageFolderPath
           let localPath;
           if (m.source === 'master') {
-            localPath = `${settings.imageFolder}/${baseFilename}_${m.mediaIndex + 1}.jpg`;
+            localPath = `${imageFolderPath}/${baseFilename}_${m.mediaIndex + 1}.jpg`;
           } else {
             // Chained post image: include post index
-            localPath = `${settings.imageFolder}/${baseFilename}_p${m.postIndex + 2}_${m.mediaIndex + 1}.jpg`;
+            localPath = `${imageFolderPath}/${baseFilename}_p${m.postIndex + 2}_${m.mediaIndex + 1}.jpg`;
           }
           // Use Obsidian wikilink format for local images
           md += `![[${localPath}]]\n\n`;

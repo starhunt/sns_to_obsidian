@@ -125,7 +125,7 @@
               </div>
               <div class="provider-field">
                 <label>모델</label>
-                <select id="model-openai"></select>
+                <input type="text" id="model-openai" placeholder="gpt-4o">
               </div>
               <div class="provider-actions">
                 <button class="btn btn-sm test-provider-btn" data-provider="openai">🔍 연결 테스트</button>
@@ -149,7 +149,7 @@
               </div>
               <div class="provider-field">
                 <label>모델</label>
-                <select id="model-gemini"></select>
+                <input type="text" id="model-gemini" placeholder="gemini-2.0-flash">
               </div>
               <div class="provider-actions">
                 <button class="btn btn-sm test-provider-btn" data-provider="gemini">🔍 연결 테스트</button>
@@ -173,7 +173,7 @@
               </div>
               <div class="provider-field">
                 <label>모델</label>
-                <select id="model-anthropic"></select>
+                <input type="text" id="model-anthropic" placeholder="claude-3-5-sonnet-latest">
               </div>
               <div class="provider-actions">
                 <button class="btn btn-sm test-provider-btn" data-provider="anthropic">🔍 연결 테스트</button>
@@ -197,7 +197,7 @@
               </div>
               <div class="provider-field">
                 <label>모델</label>
-                <select id="model-grok"></select>
+                <input type="text" id="model-grok" placeholder="grok-3">
               </div>
               <div class="provider-actions">
                 <button class="btn btn-sm test-provider-btn" data-provider="grok">🔍 연결 테스트</button>
@@ -225,7 +225,7 @@
               </div>
               <div class="provider-field">
                 <label>모델</label>
-                <select id="model-zai"></select>
+                <input type="text" id="model-zai" placeholder="GLM-4.5">
               </div>
               <div class="provider-actions">
                 <button class="btn btn-sm test-provider-btn" data-provider="zai">🔍 연결 테스트</button>
@@ -290,9 +290,27 @@
         </div>
 
         <div class="setting-item">
+          <label class="toggle-label">
+            <input type="checkbox" id="useYearMonthFolders">
+            <span class="toggle-slider"></span>
+            <span class="label-text">년도/월 폴더로 구분</span>
+          </label>
+          <p class="setting-hint">활성화 시 Threads/2026/01/ 형식으로 저장</p>
+        </div>
+
+        <div class="setting-item">
           <label for="imageFolder">이미지 저장 폴더</label>
           <input type="text" id="imageFolder" placeholder="Threads_img" value="Threads_img">
           <p class="setting-hint">이미지를 저장할 폴더 (노트 폴더와 같은 레벨)</p>
+        </div>
+
+        <div class="setting-item" id="imageFolderModeContainer" style="display: none;">
+          <label for="imageFolderMode">이미지 저장 방식</label>
+          <select id="imageFolderMode">
+            <option value="fixed">고정 폴더 사용 (위 설정값)</option>
+            <option value="relative">노트 폴더 연동 (년도/월_img)</option>
+          </select>
+          <p class="setting-hint">연동 시 노트와 같은 위치에 _img 폴더 생성</p>
         </div>
       </section>
 

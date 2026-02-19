@@ -49,31 +49,31 @@ const DEFAULT_PROMPT_TEMPLATE = `다음은 Threads SNS 게시글입니다. 이 �
 
 위 형식을 정확히 따라서 출력하세요. 섹션 헤더와 구분선을 유지하세요.`;
 
-// AI Provider configurations with latest models (2025)
+// AI Provider configurations
 const AI_PROVIDERS = {
     openai: {
-        models: ['gpt-4.5-preview', 'gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o1-pro', 'gpt-4-turbo'],
+        defaultModel: 'gpt-4o',
         showEndpoint: false
     },
     gemini: {
-        models: ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+        defaultModel: 'gemini-2.0-flash',
         showEndpoint: false
     },
     anthropic: {
-        models: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest', 'claude-3-opus-latest', 'claude-3-5-opus-latest'],
+        defaultModel: 'claude-3-5-sonnet-latest',
         showEndpoint: false
     },
     grok: {
-        models: ['grok-3', 'grok-3-mini', 'grok-2', 'grok-2-mini'],
+        defaultModel: 'grok-3',
         showEndpoint: false
     },
     zai: {
-        models: ['GLM-4.5', 'GLM-4.7', 'GLM-4-Plus', 'GLM-4-Air'],
+        defaultModel: 'GLM-4.5',
         showEndpoint: true,
         defaultEndpoint: 'https://api.z.ai/api/coding/paas/v4/chat/completions'
     },
     custom: {
-        models: [],
+        defaultModel: '',
         showEndpoint: true
     }
 };
@@ -88,7 +88,9 @@ const DEFAULT_SETTINGS = {
     apiKey: '',
     vaultName: '',
     notesFolder: 'Threads',
+    useYearMonthFolders: false,
     imageFolder: 'Threads_img',
+    imageFolderMode: 'fixed', // 'fixed' or 'relative'
     fileNameType: 'postDate',
     downloadImages: false,
     showNotification: true,
@@ -124,7 +126,10 @@ const elements = {
     apiKey: document.getElementById('apiKey'),
     vaultName: document.getElementById('vaultName'),
     notesFolder: document.getElementById('notesFolder'),
+    useYearMonthFolders: document.getElementById('useYearMonthFolders'),
     imageFolder: document.getElementById('imageFolder'),
+    imageFolderMode: document.getElementById('imageFolderMode'),
+    imageFolderModeContainer: document.getElementById('imageFolderModeContainer'),
     fileNameType: document.getElementById('fileNameType'),
     downloadImages: document.getElementById('downloadImages'),
     showNotification: document.getElementById('showNotification'),
@@ -153,24 +158,9 @@ function updateProviderStatus(provider, configured) {
     }
 }
 
-// Initialize model dropdowns for each provider
+// Initialize model fields (no-op, all providers use text input now)
 function initializeProviderModels() {
-    PROVIDER_LIST.forEach(provider => {
-        if (provider === 'custom') return; // Custom uses text input
-
-        const selectEl = document.getElementById(`model-${provider}`);
-        if (!selectEl) return;
-
-        const providerConfig = AI_PROVIDERS[provider];
-        selectEl.innerHTML = '';
-
-        providerConfig.models.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model;
-            option.textContent = model;
-            selectEl.appendChild(option);
-        });
-    });
+    // All providers now use text input - no initialization needed
 }
 
 // Load settings from storage
@@ -190,10 +180,15 @@ async function loadSettings() {
     elements.apiKey.value = settings.apiKey;
     elements.vaultName.value = settings.vaultName;
     elements.notesFolder.value = settings.notesFolder;
+    elements.useYearMonthFolders.checked = settings.useYearMonthFolders;
     elements.imageFolder.value = settings.imageFolder;
+    elements.imageFolderMode.value = settings.imageFolderMode || 'fixed';
     elements.fileNameType.value = settings.fileNameType;
     elements.downloadImages.checked = settings.downloadImages;
     elements.showNotification.checked = settings.showNotification;
+
+    // Show/hide image folder mode based on year/month setting
+    updateImageFolderModeVisibility();
 
     // AI Settings
     elements.aiEnabled.checked = settings.aiEnabled;
@@ -219,11 +214,7 @@ async function loadSettings() {
         // Model
         const modelEl = document.getElementById(`model-${provider}`);
         if (modelEl) {
-            if (provider === 'custom') {
-                modelEl.value = ps.model || '';
-            } else {
-                modelEl.value = ps.model || AI_PROVIDERS[provider].models[0];
-            }
+            modelEl.value = ps.model || AI_PROVIDERS[provider]?.defaultModel || '';
         }
 
         // Endpoint (for zai and custom)
@@ -274,7 +265,9 @@ async function saveSettings() {
         apiKey: elements.apiKey.value.trim(),
         vaultName: elements.vaultName.value.trim(),
         notesFolder: elements.notesFolder.value.trim() || 'Threads',
+        useYearMonthFolders: elements.useYearMonthFolders.checked,
         imageFolder: elements.imageFolder.value.trim() || 'Threads_img',
+        imageFolderMode: elements.imageFolderMode.value,
         fileNameType: elements.fileNameType.value,
         downloadImages: elements.downloadImages.checked,
         showNotification: elements.showNotification.checked,
@@ -322,7 +315,9 @@ async function saveSettingsQuietly() {
         apiKey: elements.apiKey.value.trim(),
         vaultName: elements.vaultName.value.trim(),
         notesFolder: elements.notesFolder.value.trim() || 'Threads',
+        useYearMonthFolders: elements.useYearMonthFolders.checked,
         imageFolder: elements.imageFolder.value.trim() || 'Threads_img',
+        imageFolderMode: elements.imageFolderMode.value,
         fileNameType: elements.fileNameType.value,
         downloadImages: elements.downloadImages.checked,
         showNotification: elements.showNotification.checked,
@@ -380,10 +375,22 @@ function showStatus(element, message, type) {
     }, 3000);
 }
 
+// Update image folder mode visibility based on year/month setting
+function updateImageFolderModeVisibility() {
+    if (elements.useYearMonthFolders.checked) {
+        elements.imageFolderModeContainer.style.display = 'block';
+    } else {
+        elements.imageFolderModeContainer.style.display = 'none';
+    }
+}
+
 // Event listeners
 elements.saveSettings.addEventListener('click', saveSettings);
 elements.resetSettings.addEventListener('click', resetSettings);
 elements.testConnection.addEventListener('click', testConnection);
+
+// Year/month folder toggle handler
+elements.useYearMonthFolders.addEventListener('change', updateImageFolderModeVisibility);
 
 // Active provider change handler
 elements.aiActiveProvider.addEventListener('change', (e) => {
@@ -453,9 +460,7 @@ async function testProviderConnection(provider) {
         await saveSettingsQuietly();
 
         const apiKey = document.getElementById(`apiKey-${provider}`)?.value.trim();
-        const model = provider === 'custom'
-            ? document.getElementById(`model-${provider}`)?.value.trim()
-            : document.getElementById(`model-${provider}`)?.value;
+        const model = document.getElementById(`model-${provider}`)?.value.trim();
         const endpoint = document.getElementById(`endpoint-${provider}`)?.value.trim() || '';
 
         if (!apiKey) {

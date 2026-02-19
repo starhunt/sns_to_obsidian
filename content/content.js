@@ -518,7 +518,26 @@
             /^\d+[hmdwys]\s*(ago)?$/i, // English: 2h, 3d ago, etc.
         ];
 
+        // First, extract additional content from "See More" area (a[href$="/media"])
+        // This content is present in DOM but visually truncated
+        const additionalContentLink = element.querySelector('a[href$="/media"]');
+        let additionalContent = '';
+        if (additionalContentLink) {
+            const rawContent = additionalContentLink.innerText || '';
+            // Remove "더 보기" or "See More" text
+            additionalContent = rawContent
+                .replace(/더\s*보기/g, '')
+                .replace(/See\s*More/gi, '')
+                .trim();
+
+            // Handle text duplication in DOM (Threads sometimes duplicates content)
+            additionalContent = deduplicateText(additionalContent);
+        }
+
         textContainers.forEach(container => {
+            // Skip if it's inside the additional content link (we handle it separately)
+            if (container.closest('a[href$="/media"]')) return;
+
             // Skip if it's likely a username or metadata
             if (container.closest('a[href^="/@"]')) return;
             if (container.closest('[role="button"]')) return; // Skip button text
@@ -540,8 +559,58 @@
             }
         });
 
-        return text.trim();
+        // Combine main text with additional content
+        let finalText = text.trim();
+        if (additionalContent) {
+            // Add separator if both exist
+            if (finalText) {
+                finalText += '\n\n---\n\n' + additionalContent;
+            } else {
+                finalText = additionalContent;
+            }
+        }
+
+        return finalText;
     }
+
+    // Helper function to remove duplicated text (Threads sometimes duplicates content in DOM)
+    function deduplicateText(text) {
+        if (!text || text.length < 20) return text;
+
+        const halfLength = Math.floor(text.length / 2);
+        const firstHalf = text.substring(0, halfLength);
+        const secondHalf = text.substring(halfLength);
+
+        // Check if second half starts with the beginning of first half
+        // This handles cases where text is exactly duplicated
+        if (secondHalf.startsWith(firstHalf.substring(0, Math.min(50, firstHalf.length)))) {
+            return firstHalf.trim();
+        }
+
+        // Check for paragraph-level duplication
+        const paragraphs = text.split(/\n\s*\n/);
+        if (paragraphs.length >= 2) {
+            const uniqueParagraphs = [];
+            const seen = new Set();
+
+            for (const para of paragraphs) {
+                const trimmed = para.trim();
+                // Use first 100 chars as key to detect duplicates
+                const key = trimmed.substring(0, 100);
+                if (key && !seen.has(key)) {
+                    seen.add(key);
+                    uniqueParagraphs.push(trimmed);
+                }
+            }
+
+            if (uniqueParagraphs.length < paragraphs.length) {
+                return uniqueParagraphs.join('\n\n');
+            }
+        }
+
+        return text;
+    }
+
 
     // Extract media (images/videos) - excludes profile/avatar images
     function extractMedia(element) {
@@ -1000,7 +1069,9 @@
             postData.content.media.forEach((media, i) => {
                 if (media.type === 'image') {
                     if (settings.downloadImages) {
-                        const localPath = `${settings.imageFolder}/${generateFilename(postData).replace('.md', '')}_${i + 1}.jpg`;
+                        const postDateForPath = postData.timestamp ? new Date(postData.timestamp) : new Date();
+                        const imageFolderPath = getImageFolderPath(postDateForPath);
+                        const localPath = `${imageFolderPath}/${generateFilename(postData).replace('.md', '')}_${i + 1}.jpg`;
                         md += `![[${localPath}]]\n\n`;
                     } else {
                         md += `![이미지 ${i + 1}](${media.url})\n\n`;
@@ -1023,7 +1094,9 @@
                         if (media.type === 'image') {
                             if (settings.downloadImages) {
                                 // Generate filename for chained post images
-                                const chainImagePath = `${settings.imageFolder}/${generateFilename(postData).replace('.md', '')}_p${i + 2}_${j + 1}.jpg`;
+                                const postDateForPath = postData.timestamp ? new Date(postData.timestamp) : new Date();
+                                const imageFolderPath = getImageFolderPath(postDateForPath);
+                                const chainImagePath = `${imageFolderPath}/${generateFilename(postData).replace('.md', '')}_p${i + 2}_${j + 1}.jpg`;
                                 md += `![[${chainImagePath}]]\n\n`;
                             } else {
                                 md += `![첨부 이미지](${media.url})\n\n`;
@@ -1068,6 +1141,17 @@
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${year}${month}${day}_${hours}${minutes}`;
+    }
+
+    // Get image folder path based on settings and date
+    function getImageFolderPath(date) {
+        if (settings.useYearMonthFolders && settings.imageFolderMode === 'relative') {
+            // Use note folder + _img suffix (e.g., "Threads/2026/01_img")
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            return `${settings.notesFolder}/${year}/${month}_img`;
+        }
+        return settings.imageFolder;
     }
 
     // Show toast notification with optional click-to-open Obsidian
