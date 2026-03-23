@@ -92,8 +92,14 @@ elements.testConnection.addEventListener('click', async () => {
 
 elements.helpLink.addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: 'https://github.com/your-repo/threads-to-obsidian#readme' });
+    chrome.tabs.create({ url: 'https://github.com/starhunt/sns_to_obsidian#readme' });
 });
+
+// Set version from manifest
+const versionEl = document.getElementById('versionText');
+if (versionEl) {
+    versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+}
 
 // Initialize
 init();

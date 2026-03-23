@@ -4,6 +4,44 @@
 // Import AI service
 importScripts('ai-service.js');
 
+// fetch with timeout using AbortController
+function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(id));
+}
+
+// YAML 문자열 이스케이프 (쌍따옴표 내부용)
+function escapeYaml(str) {
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// 파일명에 안전하지 않은 문자 제거
+function sanitizeFilename(name) {
+  return name
+    .replace(/[\/\\:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/\.+$/g, '')
+    .replace(/^\.+/g, '')
+    .trim()
+    .substring(0, 200);
+}
+
+// HTTP 상태 코드별 사용자 친화적 에러 메시지
+function getHttpErrorMessage(status, context) {
+  switch (status) {
+    case 401: return `인증 실패 (${context}): API 키를 확인하세요`;
+    case 403: return `접근 거부 (${context}): 권한을 확인하세요`;
+    case 404: return `경로를 찾을 수 없음 (${context}): 폴더가 존재하는지 확인하세요`;
+    case 429: return `요청 한도 초과 (${context}): 잠시 후 다시 시도하세요`;
+    default:
+      if (status >= 500) return `서버 오류 (${context}): Obsidian을 확인하세요 (${status})`;
+      return `${context} 실패: HTTP ${status}`;
+  }
+}
+
 // Default settings
 const DEFAULT_SETTINGS = {
   // Trigger settings
@@ -123,23 +161,25 @@ async function saveToObsidian(noteData) {
   try {
     // Save the markdown note
     const noteUrl = buildApiUrl(settings, `/vault/${encodeURIComponent(notePath)}`);
-    const noteResponse = await fetch(noteUrl, {
+    const noteResponse = await fetchWithTimeout(noteUrl, {
       method: 'PUT',
       headers,
       body: content
     });
 
     if (!noteResponse.ok) {
-      throw new Error(`Failed to save note: ${noteResponse.status}`);
+      throw new Error(getHttpErrorMessage(noteResponse.status, '노트 저장'));
     }
 
     // Download and save images if enabled
+    const imageErrors = [];
     if (settings.downloadImages && images && images.length > 0) {
       for (const image of images) {
         try {
           await saveImageToObsidian(settings, image, imageFolderPath);
         } catch (imgError) {
           console.error('Failed to save image:', imgError);
+          imageErrors.push(imgError.message);
         }
       }
     }
@@ -147,7 +187,7 @@ async function saveToObsidian(noteData) {
     // Update stats
     await updateStats();
 
-    return { success: true, path: notePath, vaultName: settings.vaultName };
+    return { success: true, path: notePath, vaultName: settings.vaultName, imageErrors };
   } catch (error) {
     console.error('Failed to save to Obsidian:', error);
     return { success: false, error: error.message };
@@ -162,9 +202,9 @@ async function saveImageToObsidian(settings, imageData, imageFolderPath) {
   const imagePath = `${folderPath}/${filename}`;
 
   // Fetch the image
-  const imageResponse = await fetch(url);
+  const imageResponse = await fetchWithTimeout(url, {}, 30000);
   if (!imageResponse.ok) {
-    throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+    throw new Error(getHttpErrorMessage(imageResponse.status, '이미지 다운로드'));
   }
 
   const imageBlob = await imageResponse.blob();
@@ -179,14 +219,14 @@ async function saveImageToObsidian(settings, imageData, imageFolderPath) {
   }
 
   const imageUrl = buildApiUrl(settings, `/vault/${encodeURIComponent(imagePath)}`);
-  const response = await fetch(imageUrl, {
+  const response = await fetchWithTimeout(imageUrl, {
     method: 'PUT',
     headers,
     body: arrayBuffer
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to save image: ${response.status}`);
+    throw new Error(getHttpErrorMessage(response.status, '이미지 저장'));
   }
 
   return { success: true, path: imagePath };
@@ -270,8 +310,8 @@ async function saveWithAI(data, sender) {
   sendProgress('saving', 'Obsidian에 저장 중...');
 
   // Build filename
-  const username = postData.author.username.replace('@', '');
-  const titlePart = title ? `_${title}` : '';
+  const username = sanitizeFilename(postData.author.username.replace('@', ''));
+  const titlePart = title ? `_${sanitizeFilename(title)}` : '';
   const date = new Date(postData.timestamp || Date.now());
   const dateStr = formatDateForFilename(date);
   const filename = `@${username}${titlePart}_${dateStr}.md`;
@@ -329,12 +369,12 @@ function buildAIMarkdown(postData, aiContent, settings, date) {
   let md = '---\n';
   md += 'source: threads\n';
   md += `type: ${postData.type}\n`;
-  md += `author: "${postData.author.username}"\n`;
-  md += `author_name: "${postData.author.displayName}"\n`;
+  md += `author: "${escapeYaml(postData.author.username)}"\n`;
+  md += `author_name: "${escapeYaml(postData.author.displayName)}"\n`;
   if (topic) {
-    md += `topic: "${topic}"\n`;
+    md += `topic: "${escapeYaml(topic)}"\n`;
   }
-  md += `post_url: "${postData.url}"\n`;
+  md += `post_url: "${escapeYaml(postData.url)}"\n`;
   md += `saved_at: "${savedDate}"\n`;
   md += `post_date: "${postDate}"\n`;
 
@@ -529,14 +569,15 @@ async function testConnection() {
   }
 
   try {
-    const response = await fetch(url, { headers });
+    const response = await fetchWithTimeout(url, { headers }, 10000);
     if (response.ok) {
       return { success: true, message: 'Connected to Obsidian REST API' };
     } else {
-      return { success: false, message: `Connection failed: ${response.status}` };
+      return { success: false, message: getHttpErrorMessage(response.status, '연결 테스트') };
     }
   } catch (error) {
-    return { success: false, message: `Connection error: ${error.message}` };
+    const msg = error.name === 'AbortError' ? '연결 시간 초과 (10초)' : error.message;
+    return { success: false, message: `연결 오류: ${msg}` };
   }
 }
 

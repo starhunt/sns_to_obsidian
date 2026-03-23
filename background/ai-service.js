@@ -1,5 +1,13 @@
 // AI Service Module - Handles AI API calls for content transformation
 
+// AI fetch with timeout (60초)
+function aiFetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { ...options, signal: controller.signal })
+        .finally(() => clearTimeout(id));
+}
+
 // AI Provider endpoint configurations
 const AI_ENDPOINTS = {
     openai: 'https://api.openai.com/v1/chat/completions',
@@ -38,7 +46,7 @@ async function callAI(prompt, settings) {
 
 // OpenAI-compatible API call (OpenAI, Grok, zai, Custom)
 async function callOpenAICompatible(prompt, apiKey, endpoint, model, maxTokens) {
-    const response = await fetch(endpoint, {
+    const response = await aiFetchWithTimeout(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -58,14 +66,16 @@ async function callOpenAICompatible(prompt, apiKey, endpoint, model, maxTokens) 
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('AI 응답 형식이 올바르지 않습니다.');
+    return content;
 }
 
 // Google Gemini API call
 async function callGemini(prompt, apiKey, model, maxTokens) {
     const endpoint = AI_ENDPOINTS.gemini.replace('{model}', model) + `?key=${apiKey}`;
 
-    const response = await fetch(endpoint, {
+    const response = await aiFetchWithTimeout(endpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -85,12 +95,14 @@ async function callGemini(prompt, apiKey, model, maxTokens) {
     }
 
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) throw new Error('Gemini 응답 형식이 올바르지 않습니다.');
+    return content;
 }
 
 // Anthropic Claude API call
 async function callAnthropic(prompt, apiKey, model, maxTokens) {
-    const response = await fetch(AI_ENDPOINTS.anthropic, {
+    const response = await aiFetchWithTimeout(AI_ENDPOINTS.anthropic, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -110,7 +122,9 @@ async function callAnthropic(prompt, apiKey, model, maxTokens) {
     }
 
     const data = await response.json();
-    return data.content[0].text;
+    const content = data?.content?.[0]?.text;
+    if (!content) throw new Error('Anthropic 응답 형식이 올바르지 않습니다.');
+    return content;
 }
 
 // Transform post content AND generate title in single API call

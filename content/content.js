@@ -6,11 +6,30 @@
 
     // State tracking for button clicks
     const processedPosts = new Set();
+    const MAX_PROCESSED_POSTS = 500;
     let settings = null;
 
     // AI progress tracking
     let aiProgressTimer = null;
     let aiProgressStartTime = null;
+
+    // MutationObserver 참조 (cleanup용)
+    let domObserver = null;
+
+    // YAML 문자열 이스케이프
+    function escapeYaml(str) {
+        if (!str) return '';
+        return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    }
+
+    // processedPosts 크기 제한
+    function addProcessedPost(key) {
+        if (processedPosts.size >= MAX_PROCESSED_POSTS) {
+            const oldest = processedPosts.values().next().value;
+            processedPosts.delete(oldest);
+        }
+        processedPosts.add(key);
+    }
 
     // Initialize
     async function init() {
@@ -50,6 +69,7 @@
 
         // Start timer if not already running
         if (!aiProgressStartTime) {
+            stopProgressTimer(); // 기존 타이머 정리
             aiProgressStartTime = Date.now();
             aiProgressTimer = setInterval(() => {
                 updateToastTimer();
@@ -115,7 +135,7 @@
 
     // Observe DOM for dynamically loaded content
     function observeDOM() {
-        const observer = new MutationObserver((mutations) => {
+        domObserver = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
                 if (mutation.addedNodes.length) {
                     attachButtonListeners();
@@ -123,13 +143,22 @@
             }
         });
 
-        observer.observe(document.body, {
+        domObserver.observe(document.body, {
             childList: true,
             subtree: true
         });
 
         // Initial attachment
         attachButtonListeners();
+
+        // 페이지 언로드 시 observer 정리
+        window.addEventListener('beforeunload', () => {
+            if (domObserver) {
+                domObserver.disconnect();
+                domObserver = null;
+            }
+            stopProgressTimer();
+        });
     }
 
     // Attach click listeners to like/save buttons
@@ -313,7 +342,7 @@
             if (processedPosts.has(postId)) {
                 return;
             }
-            processedPosts.add(postId);
+            addProcessedPost(postId);
 
             // Convert to markdown
             const markdown = convertToMarkdown(postData);
@@ -351,7 +380,8 @@
             // Determine message type based on AI settings
             let result;
             if (settings.aiEnabled) {
-                // Start progress timer
+                // Start progress timer (기존 타이머 정리 후)
+                stopProgressTimer();
                 aiProgressStartTime = Date.now();
                 aiProgressTimer = setInterval(() => {
                     updateToastTimer();
@@ -403,7 +433,8 @@
                 showToast('✅ Saved to Obsidian' + aiInfo, {
                     isSuccess: true,
                     filePath: result.path,
-                    vaultName: result.vaultName
+                    vaultName: result.vaultName,
+                    imageErrors: result.imageErrors || []
                 });
 
                 // Log failure reason if AI was enabled but not used
@@ -998,9 +1029,9 @@
         let md = '---\n';
         md += 'source: threads\n';
         md += `type: ${postData.type}\n`;
-        md += `author: "${postData.author.username}"\n`;
-        md += `author_name: "${postData.author.displayName}"\n`;
-        md += `post_url: "${postData.url}"\n`;
+        md += `author: "${escapeYaml(postData.author.username)}"\n`;
+        md += `author_name: "${escapeYaml(postData.author.displayName)}"\n`;
+        md += `post_url: "${escapeYaml(postData.url)}"\n`;
         md += `saved_at: "${savedDate}"\n`;
 
         if (postData.timestamp) {
@@ -1012,11 +1043,11 @@
         }
 
         if (postData.type === 'repost' && postData.reposter) {
-            md += `reposter: "${postData.reposter.username}"\n`;
+            md += `reposter: "${escapeYaml(postData.reposter.username)}"\n`;
         }
 
         if (postData.type === 'quote' && postData.quotedPost) {
-            md += `quoted_author: "${postData.quotedPost.author.username}"\n`;
+            md += `quoted_author: "${escapeYaml(postData.quotedPost.author.username)}"\n`;
         }
 
         md += 'tags:\n  - threads\n';
@@ -1175,25 +1206,44 @@
             const elapsedText = elapsed !== undefined ? `${elapsed}초` : '';
             const subtitleParts = [modelText, elapsedText].filter(Boolean).join(' • ') || '잠시 기다려주세요';
 
-            toast.innerHTML = `
-                <span class="toast-icon toast-spinner">⏳</span>
-                <div class="toast-content">
-                    <div class="toast-title">${stageText}</div>
-                    <div class="toast-subtitle">${subtitleParts}</div>
-                </div>
-            `;
+            const icon = document.createElement('span');
+            icon.className = 'toast-icon toast-spinner';
+            icon.textContent = '\u23F3';
+            const content = document.createElement('div');
+            content.className = 'toast-content';
+            const title = document.createElement('div');
+            title.className = 'toast-title';
+            title.textContent = stageText;
+            const subtitle = document.createElement('div');
+            subtitle.className = 'toast-subtitle';
+            subtitle.textContent = subtitleParts;
+            content.appendChild(title);
+            content.appendChild(subtitle);
+            toast.appendChild(icon);
+            toast.appendChild(content);
             toast.dataset.processing = 'true';
         } else if (filePath && isSuccess) {
             // Create structured toast with click-to-open
             const hasVault = vaultName && vaultName.trim() !== '';
+            const imageErrors = options.imageErrors || [];
 
-            toast.innerHTML = `
-                <span class="toast-icon">✅</span>
-                <div class="toast-content">
-                    <div class="toast-title">Obsidian에 저장됨</div>
-                    <div class="toast-subtitle">${hasVault ? '클릭하여 열기' : '설정에서 볼트 이름을 입력하세요'}</div>
-                </div>
-            `;
+            const icon = document.createElement('span');
+            icon.className = 'toast-icon';
+            icon.textContent = imageErrors.length > 0 ? '\u26A0\uFE0F' : '\u2705';
+            const content = document.createElement('div');
+            content.className = 'toast-content';
+            const title = document.createElement('div');
+            title.className = 'toast-title';
+            title.textContent = imageErrors.length > 0
+                ? `Obsidian에 저장됨 (이미지 ${imageErrors.length}개 실패)`
+                : 'Obsidian에 저장됨';
+            const subtitle = document.createElement('div');
+            subtitle.className = 'toast-subtitle';
+            subtitle.textContent = hasVault ? '클릭하여 열기' : '설정에서 볼트 이름을 입력하세요';
+            content.appendChild(title);
+            content.appendChild(subtitle);
+            toast.appendChild(icon);
+            toast.appendChild(content);
 
             if (hasVault) {
                 toast.style.cursor = 'pointer';

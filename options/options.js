@@ -285,6 +285,27 @@ async function saveSettings() {
         aiApiKeys: Object.fromEntries(PROVIDER_LIST.map(p => [p, providerSettings[p].apiKey]))
     };
 
+    // 커스텀 엔드포인트에 대한 호스트 권한 요청
+    const customEndpoints = [];
+    if (providerSettings.custom?.endpoint) customEndpoints.push(providerSettings.custom.endpoint);
+    if (providerSettings.zai?.endpoint && providerSettings.zai.endpoint !== 'https://api.z.ai/api/coding/paas/v4/chat/completions') {
+        customEndpoints.push(providerSettings.zai.endpoint);
+    }
+
+    for (const endpoint of customEndpoints) {
+        try {
+            const url = new URL(endpoint);
+            const origin = `${url.protocol}//${url.hostname}/*`;
+            const granted = await chrome.permissions.request({ origins: [origin] });
+            if (!granted) {
+                showStatus(elements.saveStatus, `⚠️ ${url.hostname} 접근 권한이 거부되었습니다. 해당 엔드포인트가 작동하지 않을 수 있습니다.`, 'error');
+                return;
+            }
+        } catch (e) {
+            console.warn('Permission request failed for endpoint:', endpoint, e);
+        }
+    }
+
     await chrome.storage.sync.set({ settings });
     showStatus(elements.saveStatus, '✅ 설정이 저장되었습니다.', 'success');
 
@@ -489,6 +510,12 @@ async function testProviderConnection(provider) {
         resultEl.textContent = '❌ ' + error.message;
         resultEl.className = 'test-result error';
     }
+}
+
+// Set version from manifest
+const versionEl = document.getElementById('versionText');
+if (versionEl) {
+    versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
 }
 
 // Initialize
