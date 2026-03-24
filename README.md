@@ -201,6 +201,21 @@ sns_to_obsidian/
 - No analytics, tracking, or data collection
 - The extension only activates on `threads.net` / `threads.com`
 
+## Release Packaging
+
+Build a Chrome Web Store zip with preflight checks:
+
+```bash
+./scripts/package-cws.sh
+```
+
+Output:
+- `release/sns_to_obsidian-cws-v<version>.zip`
+
+## Architecture Notes
+
+- See `spec/architecture.md` for component boundaries and data flow.
+
 ## License
 
 MIT License

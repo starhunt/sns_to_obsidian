@@ -3,7 +3,7 @@
 ## 1) Package readiness
 
 - [ ] `manifest_version` is 3
-- [ ] Version bumped for this submission (`1.3.1`)
+- [ ] Version bumped for this submission (`1.3.2` or newer)
 - [ ] No broad wildcard host permission (avoid `https://*/*`)
 - [ ] Icons exist and load: 16 / 32 / 48 / 128
 - [ ] Extension name/description match actual behavior
@@ -22,6 +22,7 @@
 - [ ] Single-purpose description
 - [ ] 128 icon (already in extension)
 - [ ] Screenshots (recommended: popup, options page, Threads save result in Obsidian)
+  - Recommended size: 1280x800 (consistent ratio for review upload)
 - [ ] Promotional images (optional)
 
 ## 4) Functional QA before upload
