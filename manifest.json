@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Threads to Obsidian",
-  "version": "1.3.2",
+  "version": "1.3.5",
   "description": "Save Threads posts to Obsidian via Local REST API",
+  "default_locale": "ko",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
@@ -16,6 +17,8 @@
     "http://127.0.0.1/*",
     "https://localhost/*",
     "https://127.0.0.1/*",
+    "https://*.cdninstagram.com/*",
+    "https://*.fbcdn.net/*",
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*",
     "https://api.anthropic.com/*",

@@ -236,6 +236,7 @@ async function saveImageToObsidian(settings, imageData, imageFolderPath) {
 async function saveWithAI(data, sender) {
   const settings = await getSettings();
   const { postData, images } = data;
+  const postId = data.postId || '';
 
   let title = null;
   let transformedContent = null;
@@ -250,7 +251,8 @@ async function saveWithAI(data, sender) {
         stage,
         detail,
         model: settings.aiModel,
-        provider: settings.aiProvider
+        provider: settings.aiProvider,
+        postId
       }).catch(() => { }); // Ignore if tab closed
     }
   };
@@ -407,84 +409,69 @@ function buildAIMarkdown(postData, aiContent, settings, date) {
   // AI transformed content
   md += aiContent;
 
-  // Original content section
-  md += '\n\n---\n\n## 6. 원문\n\n';
-  md += `> ${postData.content.text.split('\n').join('\n> ')}\n`;
-
-  // Chained posts
-  if (postData.chainedPosts?.length > 0) {
-    postData.chainedPosts.forEach((post, i) => {
-      md += `\n> ---\n> [${i + 2}/${postData.chainedPosts.length + 1}]\n`;
-      md += `> ${post.text.split('\n').join('\n> ')}\n`;
-    });
-  }
-
-  // Media section - use iframe for CDN URLs when not downloading images
-  // Collect all media from master post and chained posts
-  const allMedia = [];
-
-  // Master post media
-  if (postData.content.media?.length > 0) {
-    postData.content.media.forEach((m, idx) => {
-      allMedia.push({ ...m, source: 'master', mediaIndex: idx });
-    });
-  }
-
-  // Chained posts media
-  if (postData.chainedPosts?.length > 0) {
-    postData.chainedPosts.forEach((post, postIdx) => {
-      if (post.media?.length > 0) {
-        post.media.forEach((m, mediaIdx) => {
-          allMedia.push({ ...m, source: `chained-${postIdx + 2}`, postIndex: postIdx, mediaIndex: mediaIdx });
-        });
-      }
-    });
-  }
-
-  // Generate base filename for images (without .md extension)
+  // Generate base filename and image folder path for inline media
   const username = postData.author.username.replace('@', '');
   const postDateForPath = date || new Date(postData.timestamp || Date.now());
   const dateStr = formatDateForFilename(postDateForPath);
   const baseFilename = `@${username}_${dateStr}`;
-
-  // Calculate image folder path
   const imageFolderPath = getImageFolderPath(settings, postDateForPath);
 
-  if (allMedia.length > 0) {
-    md += '\n---\n\n## 7. 미디어\n\n';
-    allMedia.forEach((m, i) => {
-      const label = m.source === 'master' ? '마스터글' : `연관글 ${m.source.replace('chained-', '')}`;
+  // Helper: render media items inline
+  function renderMedia(mediaItems, source, postIndex) {
+    let result = '';
+    let imageIndex = 0;
+    mediaItems.forEach((m) => {
       if (m.type === 'image') {
+        imageIndex++;
         if (settings.downloadImages) {
-          // Generate local image path using calculated imageFolderPath
           let localPath;
-          if (m.source === 'master') {
-            localPath = `${imageFolderPath}/${baseFilename}_${m.mediaIndex + 1}.jpg`;
+          if (source === 'master') {
+            localPath = `${imageFolderPath}/${baseFilename}_${imageIndex}.jpg`;
           } else {
-            // Chained post image: include post index
-            localPath = `${imageFolderPath}/${baseFilename}_p${m.postIndex + 2}_${m.mediaIndex + 1}.jpg`;
+            localPath = `${imageFolderPath}/${baseFilename}_p${postIndex + 2}_${imageIndex}.jpg`;
           }
-          // Use Obsidian wikilink format for local images
-          md += `![[${localPath}]]\n\n`;
+          result += `![[${localPath}]]\n\n`;
         } else {
-          // Use iframe for CDN image (avoids expiration issues)
-          md += `<iframe width="100%" height="400" src="${m.url}" title="${label} 이미지 ${i + 1}" frameborder="0"></iframe>\n\n`;
+          const label = source === 'master' ? '마스터글' : `연관글 ${postIndex + 2}`;
+          result += `<iframe width="100%" height="400" src="${m.url}" title="${label} 이미지 ${imageIndex}" frameborder="0"></iframe>\n\n`;
         }
       } else if (m.type === 'video') {
-        // Check for YouTube embed
         const ytMatch = m.url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
         if (ytMatch) {
-          md += `<iframe width="100%" height="315" src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen></iframe>\n\n`;
+          result += `<iframe width="100%" height="315" src="https://www.youtube.com/embed/${ytMatch[1]}" frameborder="0" allowfullscreen></iframe>\n\n`;
         } else {
-          // Use iframe for video CDN URL
-          md += `<iframe width="100%" height="315" src="${m.url}" title="${label} 동영상 ${i + 1}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n\n`;
+          const label = source === 'master' ? '마스터글' : `연관글 ${postIndex + 2}`;
+          result += `<iframe width="100%" height="315" src="${m.url}" title="${label} 동영상" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>\n\n`;
         }
+      }
+    });
+    return result;
+  }
+
+  // Original content section with inline media
+  md += '\n\n---\n\n## 6. 원문\n\n';
+  md += `> ${postData.content.text.split('\n').join('\n> ')}\n\n`;
+
+  // Master post media (inline, right after master text)
+  if (postData.content.media?.length > 0) {
+    md += renderMedia(postData.content.media, 'master', -1);
+  }
+
+  // Chained posts with inline media
+  if (postData.chainedPosts?.length > 0) {
+    postData.chainedPosts.forEach((post, i) => {
+      md += `> ---\n> [${i + 2}/${postData.chainedPosts.length + 1}]\n`;
+      md += `> ${post.text.split('\n').join('\n> ')}\n\n`;
+
+      // Chained post media (inline, right after this post's text)
+      if (post.media?.length > 0) {
+        md += renderMedia(post.media.filter(m => m.type === 'image' || m.type === 'video'), 'chained', i);
       }
     });
   }
 
   // My Notes section
-  md += '\n---\n\n## 8. My Notes\n\n';
+  md += '\n---\n\n## 7. My Notes\n\n';
   md += '### 관련 지식\n- \n\n';
   md += '### 아이디어\n- \n\n';
   md += '### 메모\n- \n\n';

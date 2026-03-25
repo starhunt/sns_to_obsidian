@@ -9,9 +9,8 @@
     const MAX_PROCESSED_POSTS = 500;
     let settings = null;
 
-    // AI progress tracking
-    let aiProgressTimer = null;
-    let aiProgressStartTime = null;
+    // AI progress tracking (per-post)
+    const aiProgressTimers = new Map();
 
     // MutationObserver 참조 (cleanup용)
     let domObserver = null;
@@ -65,46 +64,42 @@
 
     // Update progress toast with current stage and timer
     function updateProgressToast(progress) {
-        const { stage, detail, model, provider } = progress;
+        const { stage, detail, model, provider, postId } = progress;
+        if (!postId) return;
 
-        // Start timer if not already running
-        if (!aiProgressStartTime) {
-            stopProgressTimer(); // 기존 타이머 정리
-            aiProgressStartTime = Date.now();
-            aiProgressTimer = setInterval(() => {
-                updateToastTimer();
+        // Start per-post timer if not already running
+        if (!aiProgressTimers.has(postId)) {
+            const startTime = Date.now();
+            const timerId = setInterval(() => {
+                updateToastTimer(postId);
             }, 1000);
+            aiProgressTimers.set(postId, { startTime, timerId });
         }
 
-        const elapsed = Math.floor((Date.now() - aiProgressStartTime) / 1000);
+        const timerInfo = aiProgressTimers.get(postId);
+        const elapsed = Math.floor((Date.now() - timerInfo.startTime) / 1000);
         const stageText = getStageText(stage);
 
-        // Update or create toast
-        const toast = document.querySelector('.threads-obsidian-toast');
+        // Update existing toast for this postId
+        const toast = document.querySelector(`.threads-obsidian-toast[data-post-id="${postId}"]`);
         if (toast && toast.dataset.processing === 'true') {
             const titleEl = toast.querySelector('.toast-title');
             const subtitleEl = toast.querySelector('.toast-subtitle');
             if (titleEl) titleEl.textContent = stageText;
             if (subtitleEl) subtitleEl.textContent = `${provider}/${model} • ${elapsed}초`;
-        } else {
-            showToast('', {
-                isProcessing: true,
-                stage: stageText,
-                model: `${provider}/${model}`,
-                elapsed: elapsed
-            });
         }
     }
 
-    // Update timer display in toast
-    function updateToastTimer() {
-        if (!aiProgressStartTime) return;
+    // Update timer display in toast for a specific post
+    function updateToastTimer(postId) {
+        const timerInfo = aiProgressTimers.get(postId);
+        if (!timerInfo) return;
 
-        const toast = document.querySelector('.threads-obsidian-toast');
+        const toast = document.querySelector(`.threads-obsidian-toast[data-post-id="${postId}"]`);
         if (toast && toast.dataset.processing === 'true') {
             const subtitleEl = toast.querySelector('.toast-subtitle');
             if (subtitleEl) {
-                const elapsed = Math.floor((Date.now() - aiProgressStartTime) / 1000);
+                const elapsed = Math.floor((Date.now() - timerInfo.startTime) / 1000);
                 const currentText = subtitleEl.textContent;
                 const parts = currentText.split(' • ');
                 if (parts.length >= 1) {
@@ -124,13 +119,19 @@
         }
     }
 
-    // Stop progress timer
-    function stopProgressTimer() {
-        if (aiProgressTimer) {
-            clearInterval(aiProgressTimer);
-            aiProgressTimer = null;
+    // Stop progress timer for a specific post
+    function stopProgressTimer(postId) {
+        if (postId) {
+            const timerInfo = aiProgressTimers.get(postId);
+            if (timerInfo) {
+                clearInterval(timerInfo.timerId);
+                aiProgressTimers.delete(postId);
+            }
+        } else {
+            // Stop all timers
+            aiProgressTimers.forEach(info => clearInterval(info.timerId));
+            aiProgressTimers.clear();
         }
-        aiProgressStartTime = null;
     }
 
     // Observe DOM for dynamically loaded content
@@ -380,19 +381,21 @@
             // Determine message type based on AI settings
             let result;
             if (settings.aiEnabled) {
-                // Start progress timer (기존 타이머 정리 후)
-                stopProgressTimer();
-                aiProgressStartTime = Date.now();
-                aiProgressTimer = setInterval(() => {
-                    updateToastTimer();
+                // Start per-post progress timer
+                const startTime = Date.now();
+                const timerId = setInterval(() => {
+                    updateToastTimer(postId);
                 }, 1000);
+                aiProgressTimers.set(postId, { startTime, timerId });
 
-                // Show initial processing toast
+                // Show initial processing toast with author info
                 showToast('', {
                     isProcessing: true,
                     stage: '⏳ AI 처리 시작...',
                     model: `${settings.aiProvider}/${settings.aiModel}`,
-                    elapsed: 0
+                    elapsed: 0,
+                    postId,
+                    authorId: postData.author.username
                 });
 
                 // Use AI transformation
@@ -401,12 +404,13 @@
                     data: {
                         postData,
                         images: settings.downloadImages ? images : [],
-                        originalMarkdown: markdown
+                        originalMarkdown: markdown,
+                        postId
                     }
                 });
 
-                // Stop progress timer
-                stopProgressTimer();
+                // Stop progress timer for this post
+                stopProgressTimer(postId);
 
                 // Log AI usage info
                 if (result) {
@@ -434,7 +438,9 @@
                     isSuccess: true,
                     filePath: result.path,
                     vaultName: result.vaultName,
-                    imageErrors: result.imageErrors || []
+                    imageErrors: result.imageErrors || [],
+                    postId,
+                    authorId: postData.author.username
                 });
 
                 // Log failure reason if AI was enabled but not used
@@ -446,7 +452,7 @@
             }
         } catch (error) {
             // Stop timer on error
-            stopProgressTimer();
+            stopProgressTimer(postId);
 
             console.error('Threads to Obsidian: Error in processPost:', error);
 
@@ -1097,15 +1103,17 @@
         // Media
         if (postData.content.media.length > 0) {
             md += '## 🖼️ 미디어\n\n';
-            postData.content.media.forEach((media, i) => {
+            let imageIndex = 0;
+            postData.content.media.forEach((media) => {
                 if (media.type === 'image') {
+                    imageIndex++;
                     if (settings.downloadImages) {
                         const postDateForPath = postData.timestamp ? new Date(postData.timestamp) : new Date();
                         const imageFolderPath = getImageFolderPath(postDateForPath);
-                        const localPath = `${imageFolderPath}/${generateFilename(postData).replace('.md', '')}_${i + 1}.jpg`;
+                        const localPath = `${imageFolderPath}/${generateFilename(postData).replace('.md', '')}_${imageIndex}.jpg`;
                         md += `![[${localPath}]]\n\n`;
                     } else {
-                        md += `![이미지 ${i + 1}](${media.url})\n\n`;
+                        md += `![이미지 ${imageIndex}](${media.url})\n\n`;
                     }
                 } else if (media.type === 'video') {
                     md += `[🎬 동영상 링크](${media.url})\n\n`;
@@ -1121,13 +1129,15 @@
                     md += `> ${post.text.replace(/\n/g, '\n> ')}\n\n`;
                 }
                 if (post.media && post.media.length > 0) {
-                    post.media.forEach((media, j) => {
+                    let chainImageIndex = 0;
+                    post.media.forEach((media) => {
                         if (media.type === 'image') {
+                            chainImageIndex++;
                             if (settings.downloadImages) {
                                 // Generate filename for chained post images
                                 const postDateForPath = postData.timestamp ? new Date(postData.timestamp) : new Date();
                                 const imageFolderPath = getImageFolderPath(postDateForPath);
-                                const chainImagePath = `${imageFolderPath}/${generateFilename(postData).replace('.md', '')}_p${i + 2}_${j + 1}.jpg`;
+                                const chainImagePath = `${imageFolderPath}/${generateFilename(postData).replace('.md', '')}_p${i + 2}_${chainImageIndex}.jpg`;
                                 md += `![[${chainImagePath}]]\n\n`;
                             } else {
                                 md += `![첨부 이미지](${media.url})\n\n`;
@@ -1185,18 +1195,44 @@
         return settings.imageFolder;
     }
 
-    // Show toast notification with optional click-to-open Obsidian
-    function showToast(message, options = {}) {
-        const { filePath, isSuccess, vaultName, isProcessing } = options;
+    // Get or create toast container for stacking
+    function getToastContainer() {
+        let container = document.querySelector('.threads-obsidian-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'threads-obsidian-toast-container';
+            document.body.appendChild(container);
+        }
+        return container;
+    }
 
-        // Remove any existing toast
-        const existingToast = document.querySelector('.threads-obsidian-toast');
-        if (existingToast) {
-            existingToast.remove();
+    // Show toast notification with optional click-to-open Obsidian (supports stacking)
+    function showToast(message, options = {}) {
+        const { filePath, isSuccess, vaultName, isProcessing, postId, authorId } = options;
+        const container = getToastContainer();
+
+        // If postId given, find and replace existing toast for this post
+        if (postId) {
+            const existing = container.querySelector(`.threads-obsidian-toast[data-post-id="${postId}"]`);
+            if (existing) {
+                existing.remove();
+            }
+        } else {
+            // For non-postId toasts (errors etc.), remove duplicates
+            const existingGeneric = container.querySelector('.threads-obsidian-toast:not([data-post-id])');
+            if (existingGeneric) {
+                existingGeneric.remove();
+            }
         }
 
         const toast = document.createElement('div');
         toast.className = 'threads-obsidian-toast';
+        if (postId) {
+            toast.dataset.postId = postId;
+        }
+
+        // Author badge (shown for all post-related toasts)
+        const authorBadge = authorId ? authorId : '';
 
         if (isProcessing) {
             // Processing toast with spinner - stays visible until replaced
@@ -1211,6 +1247,12 @@
             icon.textContent = '\u23F3';
             const content = document.createElement('div');
             content.className = 'toast-content';
+            if (authorBadge) {
+                const author = document.createElement('div');
+                author.className = 'toast-author';
+                author.textContent = authorBadge;
+                content.appendChild(author);
+            }
             const title = document.createElement('div');
             title.className = 'toast-title';
             title.textContent = stageText;
@@ -1232,6 +1274,12 @@
             icon.textContent = imageErrors.length > 0 ? '\u26A0\uFE0F' : '\u2705';
             const content = document.createElement('div');
             content.className = 'toast-content';
+            if (authorBadge) {
+                const author = document.createElement('div');
+                author.className = 'toast-author';
+                author.textContent = authorBadge;
+                content.appendChild(author);
+            }
             const title = document.createElement('div');
             title.className = 'toast-title';
             title.textContent = imageErrors.length > 0
@@ -1250,9 +1298,6 @@
 
                 // Click handler to open in Obsidian
                 toast.addEventListener('click', () => {
-                    // Use Obsidian URI with vault and file parameters
-                    // Format: obsidian://open?vault=VaultName&file=RelativePath
-                    // Remove .md extension as Obsidian doesn't need it
                     const filePathWithoutExt = filePath.replace(/\.md$/, '');
                     const obsidianUri = `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(filePathWithoutExt)}`;
                     window.open(obsidianUri, '_blank');
@@ -1264,7 +1309,7 @@
             toast.textContent = message;
         }
 
-        document.body.appendChild(toast);
+        container.appendChild(toast);
 
         setTimeout(() => {
             toast.classList.add('show');
