@@ -82,6 +82,8 @@ const AI_PROVIDERS = {
 const DEFAULT_SETTINGS = {
     triggerOnLike: true,
     triggerOnSave: true,
+    saveMethod: 'rest', // 'rest' or 'uri'
+    uriVaultMode: 'specified', // 'specified' or 'lastActive'
     protocol: 'http',
     host: 'localhost',
     port: '27123',
@@ -120,6 +122,13 @@ const DEFAULT_SETTINGS = {
 const elements = {
     triggerOnLike: document.getElementById('triggerOnLike'),
     triggerOnSave: document.getElementById('triggerOnSave'),
+    saveMethod: document.getElementById('saveMethod'),
+    restApiSettings: document.getElementById('restApiSettings'),
+    uriSettings: document.getElementById('uriSettings'),
+    saveMethodHint: document.getElementById('saveMethodHint'),
+    uriVaultMode: document.getElementById('uriVaultMode'),
+    uriVaultModeContainer: document.getElementById('uriVaultModeContainer'),
+    vaultNameHint: document.getElementById('vaultNameHint'),
     protocol: document.getElementById('protocol'),
     host: document.getElementById('host'),
     port: document.getElementById('port'),
@@ -174,6 +183,9 @@ async function loadSettings() {
     // Basic settings
     elements.triggerOnLike.checked = settings.triggerOnLike;
     elements.triggerOnSave.checked = settings.triggerOnSave;
+    elements.saveMethod.value = settings.saveMethod || 'rest';
+    elements.uriVaultMode.value = settings.uriVaultMode || 'specified';
+    updateSaveMethodVisibility();
     elements.protocol.value = settings.protocol;
     elements.host.value = settings.host;
     elements.port.value = settings.port;
@@ -259,6 +271,8 @@ async function saveSettings() {
     const settings = {
         triggerOnLike: elements.triggerOnLike.checked,
         triggerOnSave: elements.triggerOnSave.checked,
+        saveMethod: elements.saveMethod.value,
+        uriVaultMode: elements.uriVaultMode.value,
         protocol: elements.protocol.value,
         host: elements.host.value.trim(),
         port: elements.port.value.trim(),
@@ -330,6 +344,8 @@ async function saveSettingsQuietly() {
     const settings = {
         triggerOnLike: elements.triggerOnLike.checked,
         triggerOnSave: elements.triggerOnSave.checked,
+        saveMethod: elements.saveMethod.value,
+        uriVaultMode: elements.uriVaultMode.value,
         protocol: elements.protocol.value,
         host: elements.host.value.trim(),
         port: elements.port.value.trim(),
@@ -405,10 +421,32 @@ function updateImageFolderModeVisibility() {
     }
 }
 
+// 저장 방식에 따른 UI 토글
+function updateSaveMethodVisibility() {
+    const isRest = elements.saveMethod.value === 'rest';
+    elements.restApiSettings.style.display = isRest ? 'block' : 'none';
+    elements.uriSettings.style.display = isRest ? 'none' : 'block';
+    elements.saveMethodHint.textContent = isRest
+        ? 'REST API: 이미지 로컬 저장 가능, Local REST API 플러그인 필요'
+        : 'URI: 클립보드 경유, 추가 플러그인 불필요, 이미지 로컬 저장 불가';
+
+    // URI 모드: 볼트 선택 옵션 표시, 이미지 다운로드 비활성화
+    elements.uriVaultModeContainer.style.display = isRest ? 'none' : 'block';
+    if (!isRest) {
+        elements.downloadImages.checked = false;
+        elements.downloadImages.disabled = true;
+    } else {
+        elements.downloadImages.disabled = false;
+    }
+}
+
 // Event listeners
 elements.saveSettings.addEventListener('click', saveSettings);
 elements.resetSettings.addEventListener('click', resetSettings);
 elements.testConnection.addEventListener('click', testConnection);
+
+// 저장 방식 변경 핸들러
+elements.saveMethod.addEventListener('change', updateSaveMethodVisibility);
 
 // Year/month folder toggle handler
 elements.useYearMonthFolders.addEventListener('change', updateImageFolderModeVisibility);

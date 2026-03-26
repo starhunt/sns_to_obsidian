@@ -40,37 +40,62 @@
         </div>
       </section>
 
-      <!-- REST API Settings -->
+      <!-- Save Method Settings -->
       <section class="settings-section">
-        <h2>🔗 Obsidian Local REST API 설정</h2>
-        <p class="section-desc">Obsidian의 Local REST API 플러그인 연결 정보를 입력합니다.</p>
+        <h2>🔗 Obsidian 연결 설정</h2>
+        <p class="section-desc">Obsidian에 노트를 저장하는 방식을 선택합니다.</p>
 
         <div class="setting-item">
-          <label for="protocol">프로토콜</label>
-          <select id="protocol">
-            <option value="http">HTTP</option>
-            <option value="https">HTTPS</option>
+          <label for="saveMethod">저장 방식</label>
+          <select id="saveMethod">
+            <option value="rest">REST API (Local REST API 플러그인)</option>
+            <option value="uri">Obsidian URI (플러그인 불필요)</option>
           </select>
+          <p class="setting-hint" id="saveMethodHint">REST API: 이미지 로컬 저장 가능, Local REST API 플러그인 필요</p>
         </div>
 
-        <div class="setting-item">
-          <label for="host">호스트</label>
-          <input type="text" id="host" placeholder="localhost" value="localhost">
+        <!-- REST API Settings (shown when saveMethod=rest) -->
+        <div id="restApiSettings">
+          <div class="setting-item">
+            <label for="protocol">프로토콜</label>
+            <select id="protocol">
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <label for="host">호스트</label>
+            <input type="text" id="host" placeholder="localhost" value="localhost">
+          </div>
+
+          <div class="setting-item">
+            <label for="port">포트</label>
+            <input type="text" id="port" placeholder="27123" value="27123">
+          </div>
+
+          <div class="setting-item">
+            <label for="apiKey">API Key (선택)</label>
+            <input type="password" id="apiKey" placeholder="API Key를 입력하세요">
+            <p class="setting-hint">REST API 플러그인에서 설정한 인증 토큰</p>
+          </div>
+
+          <button id="testConnection" class="btn btn-secondary">🔍 연결 테스트</button>
+          <div id="connectionStatus" class="connection-status"></div>
         </div>
 
-        <div class="setting-item">
-          <label for="port">포트</label>
-          <input type="text" id="port" placeholder="27123" value="27123">
+        <!-- URI Settings info (shown when saveMethod=uri) -->
+        <div id="uriSettings" style="display: none;">
+          <div class="setting-item info-box">
+            <p>📋 클립보드를 통해 <code>obsidian://new</code> URI로 노트를 생성합니다.</p>
+            <ul style="margin: 8px 0 0 16px; font-size: 13px; opacity: 0.8;">
+              <li>추가 플러그인 설치가 필요 없습니다</li>
+              <li>마지막 활성화된 Obsidian 볼트에 저장됩니다</li>
+              <li>⚠️ 이미지 로컬 다운로드는 지원되지 않습니다 (외부 URL 참조)</li>
+              <li>⚠️ 저장 시 클립보드 내용이 일시적으로 대체됩니다</li>
+            </ul>
+          </div>
         </div>
-
-        <div class="setting-item">
-          <label for="apiKey">API Key (선택)</label>
-          <input type="password" id="apiKey" placeholder="API Key를 입력하세요">
-          <p class="setting-hint">REST API 플러그인에서 설정한 인증 토큰</p>
-        </div>
-
-        <button id="testConnection" class="btn btn-secondary">🔍 연결 테스트</button>
-        <div id="connectionStatus" class="connection-status"></div>
       </section>
 
       <!-- AI Provider Settings -->
@@ -280,7 +305,16 @@
         <div class="setting-item">
           <label for="vaultName">볼트 이름</label>
           <input type="text" id="vaultName" placeholder="My Vault">
-          <p class="setting-hint">Obsidian 볼트 이름 (토스트 클릭으로 파일 열기에 필요)</p>
+          <p class="setting-hint" id="vaultNameHint">Obsidian 볼트 이름 (토스트 클릭으로 파일 열기에 필요)</p>
+        </div>
+
+        <div class="setting-item" id="uriVaultModeContainer" style="display: none;">
+          <label for="uriVaultMode">URI 저장 대상 볼트</label>
+          <select id="uriVaultMode">
+            <option value="specified">지정된 볼트에 저장 (위 볼트 이름 사용)</option>
+            <option value="lastActive">마지막 활성 볼트에 저장</option>
+          </select>
+          <p class="setting-hint">마지막 활성 볼트: Obsidian에서 가장 최근 열었던 볼트에 자동 저장</p>
         </div>
 
         <div class="setting-item">

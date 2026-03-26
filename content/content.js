@@ -378,77 +378,171 @@
                 return;
             }
 
-            // Determine message type based on AI settings
+            // URI 모드 vs REST 모드 분기
+            const isUriMode = settings.saveMethod === 'uri';
             let result;
-            if (settings.aiEnabled) {
-                // Start per-post progress timer
-                const startTime = Date.now();
-                const timerId = setInterval(() => {
-                    updateToastTimer(postId);
-                }, 1000);
-                aiProgressTimers.set(postId, { startTime, timerId });
 
-                // Show initial processing toast with author info
-                showToast('', {
-                    isProcessing: true,
-                    stage: '⏳ AI 처리 시작...',
-                    model: `${settings.aiProvider}/${settings.aiModel}`,
-                    elapsed: 0,
-                    postId,
-                    authorId: postData.author.username
-                });
+            if (isUriMode) {
+                // === URI 모드: AI 변환 후 clipboard → obsidian:// URI ===
+                if (settings.aiEnabled) {
+                    // AI 진행 타이머 시작
+                    const startTime = Date.now();
+                    const timerId = setInterval(() => {
+                        updateToastTimer(postId);
+                    }, 1000);
+                    aiProgressTimers.set(postId, { startTime, timerId });
 
-                // Use AI transformation
-                result = await chrome.runtime.sendMessage({
-                    type: 'SAVE_WITH_AI',
-                    data: {
-                        postData,
-                        images: settings.downloadImages ? images : [],
-                        originalMarkdown: markdown,
-                        postId
+                    showToast('', {
+                        isProcessing: true,
+                        stage: '⏳ AI 처리 시작...',
+                        model: `${settings.aiProvider}/${settings.aiModel}`,
+                        elapsed: 0,
+                        postId,
+                        authorId: postData.author.username
+                    });
+
+                    result = await chrome.runtime.sendMessage({
+                        type: 'TRANSFORM_WITH_AI',
+                        data: { postData, originalMarkdown: markdown, postId }
+                    });
+
+                    stopProgressTimer(postId);
+                } else {
+                    // AI 없이 원본 마크다운 사용
+                    const postDateForPath = postData.timestamp ? new Date(postData.timestamp) : new Date();
+                    let folderPath = settings.notesFolder;
+                    if (settings.useYearMonthFolders) {
+                        const y = postDateForPath.getFullYear();
+                        const m = String(postDateForPath.getMonth() + 1).padStart(2, '0');
+                        folderPath = `${settings.notesFolder}/${y}/${m}`;
                     }
-                });
-
-                // Stop progress timer for this post
-                stopProgressTimer(postId);
-
-                // Log AI usage info
-                if (result) {
-                    if (result.aiUsed) {
-                        console.log('[Threads to Obsidian] AI transformation successful');
-                    } else if (result.failureReason) {
-                        console.warn('[Threads to Obsidian] AI not used:', result.failureReason);
-                    }
-                }
-            } else {
-                // Use original markdown
-                result = await chrome.runtime.sendMessage({
-                    type: 'SAVE_TO_OBSIDIAN',
-                    data: {
-                        filename,
+                    result = {
+                        success: true,
                         content: markdown,
-                        images: settings.downloadImages ? images : []
+                        filename,
+                        filePath: `${folderPath}/${filename}`,
+                        vaultName: settings.vaultName,
+                        aiUsed: false
+                    };
+                }
+
+                if (result && result.success) {
+                    // 클립보드에 콘텐츠 복사 (유저 제스처 만료 대비 fallback 포함)
+                    let clipboardOk = false;
+                    try {
+                        await navigator.clipboard.writeText(result.content);
+                        clipboardOk = true;
+                    } catch (clipErr) {
+                        console.warn('[Threads to Obsidian] Clipboard API failed, using fallback:', clipErr);
+                        // execCommand fallback (유저 제스처 만료 시)
+                        const ta = document.createElement('textarea');
+                        ta.value = result.content;
+                        ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        clipboardOk = document.execCommand('copy');
+                        ta.remove();
                     }
-                });
-            }
 
-            if (result && result.success) {
-                const aiInfo = result.aiUsed ? ' (AI 변환)' : (result.failureReason ? ' (원본 저장)' : '');
-                showToast('✅ Saved to Obsidian' + aiInfo, {
-                    isSuccess: true,
-                    filePath: result.path,
-                    vaultName: result.vaultName,
-                    imageErrors: result.imageErrors || [],
-                    postId,
-                    authorId: postData.author.username
-                });
+                    if (!clipboardOk) {
+                        showToast('❌ 클립보드 복사 실패. 브라우저 권한을 확인해주세요.');
+                        return;
+                    }
 
-                // Log failure reason if AI was enabled but not used
-                if (settings.aiEnabled && !result.aiUsed && result.failureReason) {
-                    console.warn('[Threads to Obsidian] 원본으로 저장됨. 이유:', result.failureReason);
+                    // obsidian://new URI 생성 (.md 확장자 제거)
+                    const filePathNoExt = result.filePath.replace(/\.md$/, '');
+                    const params = new URLSearchParams();
+                    // 지정 볼트 모드일 때만 vault 파라미터 추가 (lastActive면 생략 → 마지막 활성 볼트)
+                    if (settings.uriVaultMode !== 'lastActive' && result.vaultName) {
+                        params.set('vault', result.vaultName);
+                    }
+                    params.set('file', filePathNoExt);
+                    params.set('clipboard', 'true');
+                    params.set('silent', 'true');
+                    params.set('overwrite', 'true');
+
+                    const obsidianUri = `obsidian://new?${params.toString()}`;
+                    console.log('[Threads to Obsidian] Opening URI:', obsidianUri);
+                    window.open(obsidianUri, '_self');
+
+                    const aiInfo = result.aiUsed ? ' (AI 변환)' : (result.failureReason ? ' (원본 저장)' : '');
+                    showToast('✅ Saved to Obsidian via URI' + aiInfo, {
+                        isSuccess: true,
+                        filePath: result.filePath,
+                        vaultName: result.vaultName,
+                        imageErrors: [],
+                        postId,
+                        authorId: postData.author.username
+                    });
+                } else {
+                    showToast('❌ Failed: ' + (result?.error || 'Unknown error'));
                 }
             } else {
-                showToast('❌ Failed to save: ' + (result?.error || 'Unknown error'));
+                // === REST 모드: 기존 로직 유지 ===
+                if (settings.aiEnabled) {
+                    // Start per-post progress timer
+                    const startTime = Date.now();
+                    const timerId = setInterval(() => {
+                        updateToastTimer(postId);
+                    }, 1000);
+                    aiProgressTimers.set(postId, { startTime, timerId });
+
+                    showToast('', {
+                        isProcessing: true,
+                        stage: '⏳ AI 처리 시작...',
+                        model: `${settings.aiProvider}/${settings.aiModel}`,
+                        elapsed: 0,
+                        postId,
+                        authorId: postData.author.username
+                    });
+
+                    result = await chrome.runtime.sendMessage({
+                        type: 'SAVE_WITH_AI',
+                        data: {
+                            postData,
+                            images: settings.downloadImages ? images : [],
+                            originalMarkdown: markdown,
+                            postId
+                        }
+                    });
+
+                    stopProgressTimer(postId);
+
+                    if (result) {
+                        if (result.aiUsed) {
+                            console.log('[Threads to Obsidian] AI transformation successful');
+                        } else if (result.failureReason) {
+                            console.warn('[Threads to Obsidian] AI not used:', result.failureReason);
+                        }
+                    }
+                } else {
+                    result = await chrome.runtime.sendMessage({
+                        type: 'SAVE_TO_OBSIDIAN',
+                        data: {
+                            filename,
+                            content: markdown,
+                            images: settings.downloadImages ? images : []
+                        }
+                    });
+                }
+
+                if (result && result.success) {
+                    const aiInfo = result.aiUsed ? ' (AI 변환)' : (result.failureReason ? ' (원본 저장)' : '');
+                    showToast('✅ Saved to Obsidian' + aiInfo, {
+                        isSuccess: true,
+                        filePath: result.path,
+                        vaultName: result.vaultName,
+                        imageErrors: result.imageErrors || [],
+                        postId,
+                        authorId: postData.author.username
+                    });
+
+                    if (settings.aiEnabled && !result.aiUsed && result.failureReason) {
+                        console.warn('[Threads to Obsidian] 원본으로 저장됨. 이유:', result.failureReason);
+                    }
+                } else {
+                    showToast('❌ Failed to save: ' + (result?.error || 'Unknown error'));
+                }
             }
         } catch (error) {
             // Stop timer on error

@@ -48,6 +48,9 @@ const DEFAULT_SETTINGS = {
   triggerOnLike: true,
   triggerOnSave: true,
 
+  // Save method: 'rest' or 'uri'
+  saveMethod: 'rest',
+
   // REST API settings
   protocol: 'http',
   host: 'localhost',
@@ -344,6 +347,78 @@ async function saveWithAI(data, sender) {
   return result;
 }
 
+// AI 변환만 수행 (URI 모드용 - Obsidian에 저장하지 않고 콘텐츠만 반환)
+async function transformOnly(data, sender) {
+  const settings = await getSettings();
+  const { postData } = data;
+  const postId = data.postId || '';
+
+  let title = null;
+  let transformedContent = null;
+  let aiUsed = false;
+  let failureReason = null;
+
+  const sendProgress = (stage, detail = '') => {
+    if (sender?.tab?.id) {
+      chrome.tabs.sendMessage(sender.tab.id, {
+        type: 'AI_PROGRESS', stage, detail,
+        model: settings.aiModel, provider: settings.aiProvider, postId
+      }).catch(() => {});
+    }
+  };
+
+  if (settings.aiEnabled && settings.aiApiKey && self.aiService) {
+    try {
+      sendProgress('content', 'AI 변환 중...');
+      const result = await self.aiService.transformWithTitle(postData, settings);
+      if (result.error) {
+        failureReason = result.error;
+      } else if (result.content) {
+        title = result.title;
+        transformedContent = result.content;
+        aiUsed = true;
+      } else {
+        failureReason = 'AI가 빈 응답을 반환했습니다.';
+      }
+    } catch (error) {
+      failureReason = error.message;
+    }
+  } else {
+    failureReason = !settings.aiEnabled ? 'AI 비활성화' : !settings.aiApiKey ? 'API 키 없음' : 'AI 서비스 미로드';
+  }
+
+  // 파일명 생성
+  const username = sanitizeFilename(postData.author.username.replace('@', ''));
+  const titlePart = title ? `_${sanitizeFilename(title)}` : '';
+  const date = new Date(postData.timestamp || Date.now());
+  const dateStr = formatDateForFilename(date);
+  const filename = `@${username}${titlePart}_${dateStr}.md`;
+
+  // 최종 콘텐츠 생성
+  let finalContent;
+  if (transformedContent) {
+    // URI 모드에서는 이미지 다운로드 불가 → downloadImages 강제 false
+    const uriSettings = { ...settings, downloadImages: false };
+    finalContent = buildAIMarkdown(postData, transformedContent, uriSettings, date);
+  } else {
+    finalContent = data.originalMarkdown;
+  }
+
+  // 폴더 경로 계산
+  const notesFolderPath = getNoteFolderPath(settings, date);
+  const filePath = `${notesFolderPath}/${filename}`;
+
+  return {
+    success: true,
+    content: finalContent,
+    filename,
+    filePath,
+    vaultName: settings.vaultName,
+    aiUsed,
+    failureReason
+  };
+}
+
 // Format date for filename
 function formatDateForFilename(date) {
   const year = date.getFullYear();
@@ -517,6 +592,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(result);
       } catch (error) {
         console.error('SAVE_WITH_AI error:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
+
+  // AI 변환만 수행하고 콘텐츠 반환 (URI 모드용)
+  if (message.type === 'TRANSFORM_WITH_AI') {
+    (async () => {
+      try {
+        const result = await transformOnly(message.data, sender);
+        sendResponse(result);
+      } catch (error) {
+        console.error('TRANSFORM_WITH_AI error:', error);
         sendResponse({ success: false, error: error.message });
       }
     })();

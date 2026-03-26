@@ -93,6 +93,30 @@ header h1 {
     margin-top: 6px;
 }
 
+.info-box {
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 16px;
+    border-left: 3px solid var(--accent);
+}
+
+.info-box p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.info-box ul {
+    color: var(--text-secondary);
+    line-height: 1.8;
+}
+
+.info-box code {
+    background-color: var(--bg-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
 /* Inputs */
 input[type="text"],
 input[type="password"],
