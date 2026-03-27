@@ -458,12 +458,12 @@
                     }
                     params.set('file', filePathNoExt);
                     params.set('clipboard', 'true');
-                    params.set('silent', 'true');
                     params.set('overwrite', 'true');
 
                     const obsidianUri = `obsidian://new?${params.toString()}`;
                     console.log('[Threads to Obsidian] Opening URI:', obsidianUri);
-                    window.open(obsidianUri, '_self');
+                    // _blank 사용: _self는 현재 페이지를 떠나 content script가 죽음
+                    window.open(obsidianUri, '_blank');
 
                     const aiInfo = result.aiUsed ? ' (AI 변환)' : (result.failureReason ? ' (원본 저장)' : '');
                     showToast('✅ Saved to Obsidian via URI' + aiInfo, {
